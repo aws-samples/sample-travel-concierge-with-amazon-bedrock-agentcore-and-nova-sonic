@@ -1,0 +1,78 @@
+Fare Class Rules
+Effective Date: January 1, 2026
+1. Fare Class Overview
+Basic Economy: Seat assigned at check-in. Personal item only. Checked bags $35 first
+bag domestic. No changes allowed after 24-hour window. No refund or credit on
+cancellation. Last boarding group. Miles earned at 50%. Not upgrade eligible.
+Economy: Free standard seat selection. Personal item plus carry-on. Checked bags $35
+first bag domestic. Free changes (fare difference applies). Travel credit on
+cancellation. General boarding. Miles earned at 100%. Upgrade eligible.
+Premium Economy: Free preferred seat selection. Personal item plus carry-on. 1 free
+checked bag all routes. Free changes (fare difference applies). Travel credit on
+cancellation. Priority boarding. Complimentary meal on flights over 3 hours.
+Complimentary WiFi. Miles earned at 125%. Upgrade eligible to Business.
+Business Class: Free seat selection (all seats). Personal item plus carry-on. 2 free
+checked bags up to 70 lbs each. Free changes (fare difference applies). Refundable
+fare option available. Priority boarding, check-in, security, and baggage. Lie-flat
+seat on long-haul international. Premium meal service. Complimentary WiFi. Lounge
+access. Miles earned at 150%. Upgrade eligible to First.
+First Class: Free seat selection (all seats). Personal item plus carry-on. 3 free
+checked bags up to 70 lbs each. Free changes (fare difference applies). All fares
+fully refundable. First boarding. Suite-style seating on select international routes.
+Chef-curated multi-course meals. Complimentary WiFi, amenity kit, pajamas
+(international). Lounge access including First Class lounge. Chauffeur service on
+select routes. Miles earned at 200%.
+2. Basic Economy Details
+  · Seat assigned at check-in (no advance selection).
+  · Boarding in the last group.
+  · Overhead bin space not guaranteed; bag may be gate-checked at no charge.
+  · No changes, cancellations, or upgrades after the 24-hour booking window.
+  · Miles earned at 50% of the standard rate.
+  · Not eligible for complimentary upgrades.
+3. Economy Details
+  · Free standard seat selection at booking.
+  · Preferred seats (extra legroom, front of cabin) available for $15-$75 depending
+on route.
+  · Exit row seats available for $25-$95.
+  · Changes allowed with no fee (fare difference applies).
+  · Travel credit issued on cancellation.
+  · Eligible for paid and mileage upgrades.
+  · Eligible for complimentary upgrades (Gold tier and above).
+4. Premium Economy Details
+  · Wider seat with extra legroom (up to 38 inches pitch).
+  · Preferred seat selection included at booking.
+  · 1 free checked bag on all routes.
+  · Complimentary meal service on flights over 3 hours.
+  · Complimentary WiFi.
+  · Priority boarding and check-in.
+  · Miles earned at 125% of standard rate.
+  · Eligible for paid and mileage upgrades to Business.
+5. Business Class Details
+  · Lie-flat seat on long-haul international flights.
+  · Premium recliner seat on domestic and short-haul flights.
+  · 2 free checked bags (up to 70 lbs each).
+  · Premium meal service with menu selection.
+  · Complimentary WiFi and noise-canceling headphones.
+  · Lounge access at departure airport.
+  · Priority boarding, check-in, security, and baggage handling.
+  · Miles earned at 150% of standard rate.
+  · Eligible for mileage upgrades to First Class.
+  · Refundable fare option available.
+6. First Class Details
+  · Largest seat with maximum privacy and recline.
+  · Suite-style seating on select international routes.
+  · 3 free checked bags (up to 70 lbs each).
+  · Chef-curated multi-course meal service.
+  · Premium beverage selection including champagne.
+  · Complimentary WiFi, amenity kit, and pajamas (international).
+  · Lounge access including First Class lounge where available.
+  · Chauffeur service to/from airport on select routes.
+  · Priority everything: boarding, check-in, security, baggage.
+  · Miles earned at 200% of standard rate.
+  · All fares fully refundable.
+7. Fare Class Codes
+  · Basic Economy: B
+  · Economy: Y, M, H, Q, K, L, V, W
+  · Premium Economy: O, A
+  · Business: J, C, D, I
+  · First Class: F, P
