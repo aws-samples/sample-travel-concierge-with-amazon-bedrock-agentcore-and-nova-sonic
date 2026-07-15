@@ -30,6 +30,24 @@ export const handler = async (event) => {
       case 'meal': {
         const { mealPreference } = body;
         if (!mealPreference) return { statusCode: 400, body: JSON.stringify({ error: 'mealPreference is required' }) };
+
+        // Idempotency check — if passenger already has this meal preference, skip write and email
+        const existing = await ddb.send(new GetCommand({
+          TableName: PASSENGERS_TABLE,
+          Key: { PK: `BOOKING#${bookingId}`, SK: `PASSENGER#${passengerId}` },
+        }));
+        if (existing.Item?.mealPreference === mealPreference) {
+          return {
+            statusCode: 200,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              summary: `Meal preference is already set to ${mealPreference} for this passenger.`,
+              message: `No change needed — meal already set to ${mealPreference}`,
+              bookingId, passengerId, action,
+            }),
+          };
+        }
+
         updateExpression = 'SET mealPreference = :meal';
         expressionValues = { ':meal': mealPreference };
         message = `Meal preference updated to ${mealPreference}`;

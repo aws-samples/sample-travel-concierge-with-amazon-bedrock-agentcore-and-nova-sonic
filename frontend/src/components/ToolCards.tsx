@@ -815,7 +815,7 @@ export interface ToolResultPayload {
 
 export function ToolResultCard({ payload }: { payload: ToolResultPayload }) {
   const { toolName, data, flightNumber } = payload;
-  const name = toolName.replace('th-backend-api___', '');
+  const name = toolName.replace(/^[a-z0-9-]+___/, '');
 
   // If only summary is available (gateway stripped full response), show a summary card
   const onlySummary = Object.keys(data).filter(k => k !== 'summary').length === 0;
@@ -854,6 +854,45 @@ export function ToolResultCard({ payload }: { payload: ToolResultPayload }) {
     case 'QueryPolicy':
       if (!onlySummary) return <PolicyCard data={data} />;
       break;
+    // Managed KB connector tools (AgenticRetrieveStream / Retrieve)
+    case 'AgenticRetrieveStream': {
+      // AgenticRetrieveStream returns: { generatedResponse: { answer, citations }, results }
+      // citations[].references[].metadata['x-amz-bedrock-kb-source-uri'] = S3 URI
+      const genResp = data.generatedResponse as Record<string, unknown> | undefined;
+      const kbAnswer = genResp?.answer as string | undefined;
+      if (!kbAnswer) break;
+
+      const kbCitations = ((genResp?.citations as unknown[]) || []).map((c: unknown) => {
+        const citation = c as Record<string, unknown>;
+        const refs = (citation.references as unknown[] || []).map((r: unknown) => {
+          const ref = r as Record<string, unknown>;
+          const meta = ref.metadata as Record<string, string> | undefined;
+          return { location: meta?.['x-amz-bedrock-kb-source-uri'] || '' };
+        });
+        return { sources: refs };
+      });
+
+      return <PolicyCard data={{ answer: kbAnswer, citations: kbCitations }} />;
+    }
+    case 'Retrieve': {
+      // Retrieve returns: { retrievalResults: [{ content: {text}, location, documentId, score }] }
+      const results = data.retrievalResults as Array<Record<string, unknown>> | undefined;
+      if (!results?.length) break;
+
+      // Use the top result's text as the answer
+      const topResult = results[0];
+      const retrieveAnswer = (topResult?.content as Record<string, unknown>)?.text as string | undefined;
+      if (!retrieveAnswer) break;
+
+      // Map each result's S3 URI into the citation format PolicyCard already renders
+      const retrieveCitations = results.map((r: Record<string, unknown>) => {
+        const loc = r.location as Record<string, unknown> | undefined;
+        const s3 = loc?.s3Location as Record<string, unknown> | undefined;
+        return { sources: [{ location: (s3?.uri as string) || '' }] };
+      });
+
+      return <PolicyCard data={{ answer: retrieveAnswer, citations: retrieveCitations }} />;
+    }
     case 'GetPurchaseHistory':
     case 'SaveConversation':
     case 'GetRebookOptions':

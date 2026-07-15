@@ -116,13 +116,13 @@ def seed_flight_bookings():
             "departureTime": "2026-02-27T14:14:00-06:00", "arrivalTime": "2026-02-27T16:55:00-06:00",
             "fareClass": "ECONOMY", "partyId": None, "partySize": 1, "milesEarned": 1192,
         },
-        # Upcoming flights (future dates for demo)
+        # Upcoming flights (October 2026 — outbound + return)
         {
             "bookingId": "BK-009", "confirmationNumber": "FUTR01", "status": "CONFIRMED",
             "flightNumber": "SW2350", "airline": "SkyWave Airlines",
             "departureAirport": "DFW", "departureCity": "Dallas/Fort Worth",
             "arrivalAirport": "MEX", "arrivalCity": "Mexico City",
-            "departureTime": "2026-05-15T14:30:00-05:00", "arrivalTime": "2026-05-15T16:15:00-05:00",
+            "departureTime": "2026-10-10T14:30:00-05:00", "arrivalTime": "2026-10-10T16:15:00-05:00",
             "fareClass": "ECONOMY", "partyId": "PARTY-002", "partySize": 3, "milesEarned": 934,
         },
         {
@@ -130,7 +130,7 @@ def seed_flight_bookings():
             "flightNumber": "SW2351", "airline": "SkyWave Airlines",
             "departureAirport": "MEX", "departureCity": "Mexico City",
             "arrivalAirport": "DFW", "arrivalCity": "Dallas/Fort Worth",
-            "departureTime": "2026-05-22T17:15:00-05:00", "arrivalTime": "2026-05-22T21:05:00-05:00",
+            "departureTime": "2026-10-17T17:15:00-05:00", "arrivalTime": "2026-10-17T21:05:00-05:00",
             "fareClass": "ECONOMY", "partyId": "PARTY-002", "partySize": 3, "milesEarned": 934,
         },
     ]
@@ -155,8 +155,8 @@ def seed_seat_map():
 
     # Booked flights for the customer with their occupied seats
     customer_flights = [
-        ("SW2350", "2026-05-15", {"14A", "22D", "30F"}),   # BK-009: Ravi 14A, Priya 22D, Arjun 30F
-        ("SW2351", "2026-05-22", {"18C", "18D", "18E"}),   # BK-010: Ravi 18C, Priya 18D, Arjun 18E
+        ("SW2350", "2026-10-10", {"14A", "22D", "30F"}),   # BK-009: Ravi 14A, Priya 22D, Arjun 30F
+        ("SW2351", "2026-10-17", {"18C", "18D", "18E"}),   # BK-010: Ravi 18C, Priya 18D, Arjun 18E
     ]
 
     for flight, date, occupied_seats in customer_flights:
@@ -181,18 +181,18 @@ def seed_seat_map():
 
     # ── Alternative flights for rebooking with varied seat patterns ──
 
-    # Option A: SW2351 May 23 — mostly empty, 3 adjacent seats in row 16
-    _seed_alternative_flight("SW2351", "2026-05-23",
+    # Option A: SW2351 Oct 18 — mostly empty, 3 adjacent seats in row 16
+    _seed_alternative_flight("SW2351", "2026-10-18",
         booked_seats={"10A", "10B", "12C", "12D", "15A", "20E", "20F", "25A", "25B", "25C", "30D"})
 
-    # Option B: SW1863 May 22 — nearly full, only scattered middle seats left
+    # Option B: SW1863 Oct 17 — nearly full, only scattered middle seats left
     all_seats = {f"{r}{c}" for r in range(10, 36) for c in "ABCDEF"}
     available_middles = {"14B", "18E", "22B", "26E", "29B", "33E"}  # Only middle seats
     available_aisles = {"28C"}  # One aisle seat
     booked_b = all_seats - available_middles - available_aisles
-    _seed_alternative_flight("SW1863", "2026-05-22", booked_seats=booked_b)
+    _seed_alternative_flight("SW1863", "2026-10-17", booked_seats=booked_b)
 
-    # Option C: SW982 May 23 — half full, seats available but no 3 adjacent group
+    # Option C: SW982 Oct 18 — half full, seats available but no 3 adjacent group
     booked_c = set()
     for row in range(10, 36):
         if row % 2 == 0:  # Even rows mostly booked
@@ -201,7 +201,7 @@ def seed_seat_map():
                     booked_c.add(f"{row}{col}")
         else:  # Odd rows: book A, C, D to break adjacency
             booked_c.update({f"{row}A", f"{row}C", f"{row}D"})
-    _seed_alternative_flight("SW982", "2026-05-23", booked_seats=booked_c)
+    _seed_alternative_flight("SW982", "2026-10-18", booked_seats=booked_c)
 
 
 def _seed_alternative_flight(flight, date, booked_seats):
@@ -244,28 +244,34 @@ def seed_passengers(customer_name=None):
         {"bookingId": "BK-009", "passengerId": "PAX-001", "name": lead_name,
          "seatNumber": "14A", "mealPreference": "VEGETARIAN",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": True, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": True, "partyId": "PARTY-002",
+         "flightNumber": "SW2350", "flightDate": "2026-10-10"},
         {"bookingId": "BK-009", "passengerId": "PAX-002", "name": "Priya Sharma",
          "seatNumber": "22D", "mealPreference": "VEGETARIAN",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002",
+         "flightNumber": "SW2350", "flightDate": "2026-10-10"},
         {"bookingId": "BK-009", "passengerId": "PAX-003", "name": "Arjun Patel",
          "seatNumber": "30F", "mealPreference": "REGULAR",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002",
+         "flightNumber": "SW2350", "flightDate": "2026-10-10"},
         # Return flight BK-010 (MEX → DFW) — same 3 passengers, different seats
         {"bookingId": "BK-010", "passengerId": "PAX-004", "name": lead_name,
          "seatNumber": "18C", "mealPreference": "VEGETARIAN",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": True, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": True, "partyId": "PARTY-002",
+         "flightNumber": "SW2351", "flightDate": "2026-10-17"},
         {"bookingId": "BK-010", "passengerId": "PAX-005", "name": "Priya Sharma",
          "seatNumber": "18D", "mealPreference": "VEGETARIAN",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002",
+         "flightNumber": "SW2351", "flightDate": "2026-10-17"},
         {"bookingId": "BK-010", "passengerId": "PAX-006", "name": "Arjun Patel",
          "seatNumber": "18E", "mealPreference": "REGULAR",
          "baggageAllowance": {"cabin": 1, "checked": 0, "extraChecked": 0},
-         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002"},
+         "specialAssistance": [], "isLeadPassenger": False, "partyId": "PARTY-002",
+         "flightNumber": "SW2351", "flightDate": "2026-10-17"},
     ]
 
     for p in passengers:
@@ -364,21 +370,21 @@ def seed_flight_status():
          "aircraft": "Embraer E175", "baseFare": Decimal("199"), "fareClass": "ECONOMY"},
 
         # Upcoming outbound — ON TIME
-        {"flightNumber": "SW2350", "date": "2026-05-15", "status": "ON_TIME",
+        {"flightNumber": "SW2350", "date": "2026-10-10", "status": "ON_TIME",
          "route": "DFW-MEX", "departureAirport": "DFW", "arrivalAirport": "MEX",
          "departureGate": "C22", "arrivalGate": "TBD", "terminal": "C",
-         "scheduledDeparture": "2026-05-15T14:30:00-05:00", "estimatedDeparture": "2026-05-15T14:30:00-05:00",
-         "scheduledArrival": "2026-05-15T16:15:00-05:00", "estimatedArrival": "2026-05-15T16:15:00-05:00",
+         "scheduledDeparture": "2026-10-10T14:30:00-05:00", "estimatedDeparture": "2026-10-10T14:30:00-05:00",
+         "scheduledArrival": "2026-10-10T16:15:00-05:00", "estimatedArrival": "2026-10-10T16:15:00-05:00",
          "delayMinutes": 0, "alerts": [],
          "aircraft": "Boeing 737-800", "baggageCarousel": "TBD",
          "baseFare": Decimal("289"), "fareClass": "ECONOMY"},
 
         # Upcoming return — DELAYED with gate change (demo scenario)
-        {"flightNumber": "SW2351", "date": "2026-05-22", "status": "DELAYED",
+        {"flightNumber": "SW2351", "date": "2026-10-17", "status": "DELAYED",
          "route": "MEX-DFW", "departureAirport": "MEX", "arrivalAirport": "DFW",
          "departureGate": "B42", "previousGate": "A15", "arrivalGate": "TBD", "terminal": "B",
-         "scheduledDeparture": "2026-05-22T17:15:00-05:00", "estimatedDeparture": "2026-05-22T18:45:00-05:00",
-         "scheduledArrival": "2026-05-22T21:05:00-05:00", "estimatedArrival": "2026-05-22T22:35:00-05:00",
+         "scheduledDeparture": "2026-10-17T17:15:00-05:00", "estimatedDeparture": "2026-10-17T18:45:00-05:00",
+         "scheduledArrival": "2026-10-17T21:05:00-05:00", "estimatedArrival": "2026-10-17T22:35:00-05:00",
          "delayMinutes": 90,
          "delayReason": "Late arriving aircraft from previous route",
          "alerts": [
@@ -392,31 +398,31 @@ def seed_flight_status():
         # ── Alternative flights for rebooking (same MEX-DFW route) ──
 
         # Option A: Next day same flight — same fare, 3 adjacent seats available
-        {"flightNumber": "SW2351", "date": "2026-05-23", "status": "ON_TIME",
+        {"flightNumber": "SW2351", "date": "2026-10-18", "status": "ON_TIME",
          "route": "MEX-DFW", "departureAirport": "MEX", "arrivalAirport": "DFW",
          "departureGate": "A15", "arrivalGate": "TBD", "terminal": "A",
-         "scheduledDeparture": "2026-05-23T17:15:00-05:00", "estimatedDeparture": "2026-05-23T17:15:00-05:00",
-         "scheduledArrival": "2026-05-23T21:05:00-05:00", "estimatedArrival": "2026-05-23T21:05:00-05:00",
+         "scheduledDeparture": "2026-10-18T17:15:00-05:00", "estimatedDeparture": "2026-10-18T17:15:00-05:00",
+         "scheduledArrival": "2026-10-18T21:05:00-05:00", "estimatedArrival": "2026-10-18T21:05:00-05:00",
          "delayMinutes": 0, "alerts": [],
          "aircraft": "Boeing 737-800", "baggageCarousel": "TBD",
          "baseFare": Decimal("289"), "fareClass": "ECONOMY"},
 
         # Option B: Same day evening — higher fare, limited seats
-        {"flightNumber": "SW1863", "date": "2026-05-22", "status": "ON_TIME",
+        {"flightNumber": "SW1863", "date": "2026-10-17", "status": "ON_TIME",
          "route": "MEX-DFW", "departureAirport": "MEX", "arrivalAirport": "DFW",
          "departureGate": "C10", "arrivalGate": "TBD", "terminal": "C",
-         "scheduledDeparture": "2026-05-22T21:30:00-05:00", "estimatedDeparture": "2026-05-22T21:30:00-05:00",
-         "scheduledArrival": "2026-05-23T01:15:00-05:00", "estimatedArrival": "2026-05-23T01:15:00-05:00",
+         "scheduledDeparture": "2026-10-17T21:30:00-05:00", "estimatedDeparture": "2026-10-17T21:30:00-05:00",
+         "scheduledArrival": "2026-10-18T01:15:00-05:00", "estimatedArrival": "2026-10-18T01:15:00-05:00",
          "delayMinutes": 0, "alerts": [],
          "aircraft": "Boeing 737-800", "baggageCarousel": "TBD",
          "baseFare": Decimal("334"), "fareClass": "ECONOMY"},
 
         # Option C: Next day morning — cheaper fare, plenty of seats but no adjacent group
-        {"flightNumber": "SW982", "date": "2026-05-23", "status": "ON_TIME",
+        {"flightNumber": "SW982", "date": "2026-10-18", "status": "ON_TIME",
          "route": "MEX-DFW", "departureAirport": "MEX", "arrivalAirport": "DFW",
          "departureGate": "B5", "arrivalGate": "TBD", "terminal": "B",
-         "scheduledDeparture": "2026-05-23T08:00:00-05:00", "estimatedDeparture": "2026-05-23T08:00:00-05:00",
-         "scheduledArrival": "2026-05-23T11:45:00-05:00", "estimatedArrival": "2026-05-23T11:45:00-05:00",
+         "scheduledDeparture": "2026-10-18T08:00:00-05:00", "estimatedDeparture": "2026-10-18T08:00:00-05:00",
+         "scheduledArrival": "2026-10-18T11:45:00-05:00", "estimatedArrival": "2026-10-18T11:45:00-05:00",
          "delayMinutes": 0, "alerts": [],
          "aircraft": "Airbus A321", "baggageCarousel": "TBD",
          "baseFare": Decimal("249"), "fareClass": "ECONOMY"},

@@ -7,7 +7,15 @@ import { KnowledgeBaseStack } from '../lib/knowledge-base-stack';
 import { LambdaStack } from '../lib/lambda-stack';
 import { ApiGatewayStack } from '../lib/api-gateway-stack';
 
-const app = new cdk.App();
+const app = new cdk.App({
+  context: {
+    // Explicitly set cross-stack reference strength to strong (the default).
+    // This suppresses the "No cross-stack-reference strength configured" warning
+    // and locks in producer-protecting behavior: a stack exporting a value cannot
+    // be updated in a way that breaks the consumer stacks importing it.
+    '@aws-cdk/core:defaultCrossStackReferences': 'strong',
+  },
+});
 
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
@@ -26,10 +34,8 @@ const knowledgeBaseStack = new KnowledgeBaseStack(app, 'TH-KnowledgeBaseStack', 
 const lambdaStack = new LambdaStack(app, 'TH-LambdaStack', {
   env,
   tables: dynamodbStack.tables,
-  knowledgeBaseId: knowledgeBaseStack.knowledgeBaseId,
 });
 lambdaStack.addDependency(dynamodbStack);
-lambdaStack.addDependency(knowledgeBaseStack);
 
 const apiGatewayStack = new ApiGatewayStack(app, 'TH-ApiGatewayStack', {
   env,

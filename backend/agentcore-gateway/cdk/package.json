@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-api-gateway": "^3.992.0",
-    "@aws-sdk/client-bedrock-agentcore-control": "^3.992.0",
+    "@aws-sdk/client-bedrock-agentcore-control": "^3.1079.0",
     "@aws-sdk/client-iam": "^3.992.0",
     "aws-cdk-lib": "^2.238.0",
     "constructs": "^10.0.0"

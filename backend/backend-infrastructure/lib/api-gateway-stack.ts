@@ -107,19 +107,6 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     });
 
-    const queryPolicyModel = this.api.addModel('QueryPolicyModel', {
-      contentType: 'application/json',
-      modelName: 'QueryPolicyRequest',
-      description: 'Search the travel policy knowledge base',
-      schema: {
-        type: apigateway.JsonSchemaType.OBJECT,
-        properties: {
-          question: { type: apigateway.JsonSchemaType.STRING, description: 'Natural language question about travel policies' },
-        },
-        required: ['question'],
-      },
-    });
-
     // ─── Endpoints ───────────────────────────────────────────────────────────
 
     // --- Booking & Itinerary ---
@@ -167,10 +154,6 @@ export class ApiGatewayStack extends cdk.Stack {
 
     const prefCategory = preferences.addResource('{category}');
     addWrite(prefCategory, 'PUT', functions['update-preferences'], updatePreferencesModel);
-
-    // --- Policy KB ---
-    const policy = this.api.root.addResource('policy').addResource('query');
-    addWrite(policy, 'POST', functions['query-policy'], queryPolicyModel);
 
     // --- Conversation History (audit) ---
     const saveConversationModel = this.api.addModel('SaveConversationModel', {

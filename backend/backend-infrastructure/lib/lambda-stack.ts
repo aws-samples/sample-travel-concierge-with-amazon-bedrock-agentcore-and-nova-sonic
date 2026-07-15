@@ -16,7 +16,6 @@ export interface LambdaStackProps extends cdk.StackProps {
     conversations: dynamodb.Table;
     flightStatus: dynamodb.Table;
   };
-  knowledgeBaseId: string;
 }
 
 export class LambdaStack extends cdk.Stack {
@@ -25,7 +24,7 @@ export class LambdaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: LambdaStackProps) {
     super(scope, id, props);
 
-    const { tables, knowledgeBaseId } = props;
+    const { tables } = props;
     this.functions = {};
 
     const lambdaDir = path.join(__dirname, '../lambda');
@@ -158,19 +157,6 @@ export class LambdaStack extends cdk.Stack {
     updatePrefs.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail'],
       resources: ['*'],
-    }));
-
-    // --- Policy KB ---
-    const queryPolicy = createFn('query-policy', {
-      KNOWLEDGE_BASE_ID: knowledgeBaseId,
-    });
-    queryPolicy.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['bedrock:RetrieveAndGenerate', 'bedrock:Retrieve'],
-      resources: [`arn:aws:bedrock:${this.region}:${this.account}:knowledge-base/${knowledgeBaseId}`],
-    }));
-    queryPolicy.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['bedrock:InvokeModel'],
-      resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
     }));
 
     // --- Conversation History (audit) ---

@@ -56,7 +56,7 @@ function App() {
 
       // Check if there's an existing Amplify session
       try {
-        const currentUser = await getCurrentUser();
+        await getCurrentUser();
 
         // Get the auth session with tokens
         const session = await fetchAuthSession();

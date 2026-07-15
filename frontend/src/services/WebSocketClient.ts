@@ -277,6 +277,8 @@ export class WebSocketClient {
     if (data.action === 'meal')                                             return 'UpdatePassenger';
     if (data.rebookOptions)                                                 return 'GetRebookOptions';
     if (data.question || data.answer || data.citations)                     return 'QueryPolicy';
+    if (data.generatedResponse || (data.results && Array.isArray(data.results))) return 'AgenticRetrieveStream';
+    if (data.retrievalResults && Array.isArray(data.retrievalResults)) return 'Retrieve';
     return 'unknown';
   }
 

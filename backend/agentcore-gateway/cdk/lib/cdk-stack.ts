@@ -8,6 +8,7 @@ import * as path from 'path';
 
 export interface GatewayStackProps extends cdk.StackProps {
   apiGatewayId: string;
+  knowledgeBaseId: string;
   stage?: string;
 }
 
@@ -20,7 +21,6 @@ export class CdkStack extends cdk.Stack {
 
     const stage = props.stage || 'prod';
     const gatewayName = 'th-concierge-gateway';
-
     // Lambda function for Custom Resource (Node.js with esbuild bundling - no Docker needed)
     const gatewayHandlerFunction = new NodejsFunction(this, 'GatewayHandler', {
       runtime: lambda.Runtime.NODEJS_24_X,
@@ -110,6 +110,7 @@ export class CdkStack extends cdk.Stack {
         Stage: stage,
         Region: cdk.Stack.of(this).region,
         AccountId: cdk.Stack.of(this).account,
+        KnowledgeBaseId: props.knowledgeBaseId,
         DeployTimestamp: new Date().toISOString(),
       }
     });

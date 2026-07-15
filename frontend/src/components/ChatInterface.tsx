@@ -24,6 +24,13 @@ interface Message {
   isAudio?: boolean;
   isComplete?: boolean;
   toolResult?: ToolResultPayload;
+  citations?: PolicyCitation[];
+}
+
+export interface PolicyCitation {
+  docName: string;
+  score: number;
+  page?: number;
 }
 
 interface ChatInterfaceProps {
@@ -40,13 +47,22 @@ const SILENT_TOOLS = new Set([
   'GetUpgradeOptions',
   'UpdatePreferences',
   'RebookFlight',
-  'UpdatePassenger',  // PassengerCard from subsequent GetPassengerDetails re-fetch is the confirmation
+  'UpdatePassenger',
+  // Operational read tools — agent speaks the info, no card needed
+  'GetUpcomingItinerary',
+  'GetFlightStatus',
+  'GetPassengerDetails',
+  'GetLoyaltyStatus',
+  'GetBookingDetails',
+  'GetPreferences',
+  'GetRebookOptions',
+  'UpdateSeat',
+  // Note: GetSeatMap is intentionally NOT in this list — the seat map card shows when customer asks to switch/browse seats
 ]);
 
 // ─── Write tools — card shown AFTER agent confirms, not immediately ───────────
-// UpdatePassenger is excluded — the PassengerCard from the subsequent GetPassengerDetails re-fetch IS the confirmation
 // EscalateToAgent is excluded — it must render immediately to trigger the phone dial
-const WRITE_TOOLS = new Set(['UpdateSeat']);
+const WRITE_TOOLS = new Set<string>();
 
 // ─── Text formatting ──────────────────────────────────────────────────────────
 function formatAssistantMessage(text: string): string {
@@ -86,6 +102,9 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
 
   // Pending write-tool cards — held until turn completes
   const pendingWriteCardsRef = useRef<ToolResultPayload[]>([]);
+
+  // Pending KB citations — attached to the next assistant bubble
+  const pendingCitationsRef = useRef<PolicyCitation[]>([]);
 
   // Flag: disconnect gracefully after current turn completes (set by EscalateToAgent)
   const pendingEscalationDisconnectRef = useRef(false);
@@ -139,8 +158,8 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
           // User spoke — greeting is definitely over
           greetingDoneRef.current = true;
           // Reset pending write cards — they belong to the PREVIOUS turn
-          // which is now superseded by the user's new request
           pendingWriteCardsRef.current = [];
+          pendingCitationsRef.current = [];
         }
       });
 
@@ -171,19 +190,6 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
         greetingDoneRef.current = true;
         // Flush write-tool cards now that agent has finished speaking
         flushPendingWriteCards();
-        // If escalation happened this turn, disconnect gracefully now that agent finished speaking
-        if (pendingEscalationDisconnectRef.current) {
-          pendingEscalationDisconnectRef.current = false;
-          setIsConnected(false);
-          setIsRecording(false);
-          recordingCtxRef.current?.close();
-          recordingCtxRef.current = null;
-          playbackCtxRef.current?.close();
-          playbackCtxRef.current = null;
-          nextPlayTimeRef.current = 0;
-          wsClientRef.current?.disconnect();
-          wsClientRef.current = null;
-        }
       });
 
       client.onToolStart((toolName) => setCurrentTool(toolName));
@@ -207,7 +213,7 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
     data: Record<string, unknown>,
     flightNumber?: string,
   ) => {
-    const short = toolName.replace('th-backend-api___', '');
+    const short = toolName.replace(/^[a-z0-9-]+___/, '');
 
     // Always capture loyalty data for WelcomeCard
     if (short === 'GetLoyaltyStatus' && !welcomeData) {
@@ -222,6 +228,33 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
     // Skip silent tools
     if (SILENT_TOOLS.has(short)) return;
 
+    // Handle KB Retrieve — extract citations, attach to next assistant bubble
+    if (short === 'Retrieve' || short === 'AgenticRetrieveStream') {
+      const rawResults = (data.retrievalResults as Array<Record<string, unknown>> | undefined) || [];
+      if (rawResults.length > 0) {
+        // Build citations, then deduplicate by doc name keeping highest score
+        const allCitations: PolicyCitation[] = rawResults.map(r => {
+          const uri = (r.location as Record<string, unknown> | undefined)?.s3Location as Record<string, unknown> | undefined;
+          const s3Uri = (uri?.uri as string) || '';
+          const rawName = s3Uri.split('/').pop()?.replace(/\.pdf$/i, '').replace(/-/g, ' ') || 'Policy Document';
+          const docName = rawName.replace(/\b\w/g, c => c.toUpperCase());
+          const score = Math.round(((r.score as number) || 0) * 100);
+          const meta = r.metadata as Record<string, unknown> | undefined;
+          const page = meta?.['_excerpt_page_number'] ? Number(meta['_excerpt_page_number']) : undefined;
+          return { docName, score, page };
+        });
+        // Deduplicate: one entry per doc name, keep highest score
+        const seen = new Map<string, PolicyCitation>();
+        for (const c of allCitations) {
+          const existing = seen.get(c.docName);
+          if (!existing || c.score > existing.score) seen.set(c.docName, c);
+        }
+        // Only show citations with score >= 60% to filter out low-relevance matches
+        pendingCitationsRef.current = Array.from(seen.values()).filter(c => c.score >= 60).slice(0, 3);
+      }
+      return;
+    }
+
     // Skip UpdateSeat find-group-seats (no newSeat = search result, not a change)
     if (short === 'UpdateSeat' && !data.newSeat) return;
 
@@ -234,9 +267,19 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
       // Hold write-tool cards until agent finishes speaking
       pendingWriteCardsRef.current.push(payload);
     } else if (short === 'EscalateToAgent') {
-      // Escalation: render card immediately, then disconnect AFTER agent finishes speaking
+      // Escalation: render card immediately, then disconnect after 15s to give agent time to speak the full reference number and message
       appendToolCard(payload);
-      pendingEscalationDisconnectRef.current = true;
+      setTimeout(() => {
+        setIsConnected(false);
+        setIsRecording(false);
+        recordingCtxRef.current?.close();
+        recordingCtxRef.current = null;
+        playbackCtxRef.current?.close();
+        playbackCtxRef.current = null;
+        nextPlayTimeRef.current = 0;
+        wsClientRef.current?.disconnect();
+        wsClientRef.current = null;
+      }, 30000);
     } else {
       // Read tools — show immediately (card appears before agent speaks)
       appendToolCard(payload);
@@ -277,7 +320,11 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
           return updated;
         }
       }
-      return [...prev, { role, content, timestamp: new Date(), isAudio, isComplete }];
+      // Attach any pending KB citations to a new assistant bubble
+      const citations = role === 'assistant' && pendingCitationsRef.current.length > 0
+        ? pendingCitationsRef.current.splice(0)
+        : undefined;
+      return [...prev, { role, content, timestamp: new Date(), isAudio, isComplete, citations }];
     });
   };
 
@@ -429,6 +476,9 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
       'th-backend-api___QueryPolicy':          '📖 Checking policy...',
       'th-backend-api___EscalateToAgent':      '🎧 Connecting to live agent...',
       'th-backend-api___SaveConversation':     '💾 Saving conversation...',
+      // Managed KB connector tools (exposed by th-policy-kb target)
+      'th-policy-kb___AgenticRetrieveStream':  '📖 Searching policy documents...',
+      'th-policy-kb___Retrieve':               '📖 Looking up policy...',
     };
     return map[toolName] || '🔧 Working...';
   };
@@ -566,6 +616,37 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
                   <span>{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   {msg.isAudio && <span>🎤</span>}
                 </div>
+                {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
+                  <div style={{
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTop: '1px solid #E0E7EF',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 4,
+                  }}>
+                    {msg.citations.map((c, ci) => (
+                      <div key={ci} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 11,
+                        color: '#6B7A8D',
+                      }}>
+                        <span title="Source document">📄</span>
+                        <span style={{ fontWeight: 500, color: '#0F2B46' }}>{c.docName}</span>
+                        {c.page && <span style={{ color: '#999' }}>p.{c.page}</span>}
+                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3 }}>
+                          <span title="Confidence score">🎯</span>
+                          <span style={{
+                            fontWeight: 600,
+                            color: c.score >= 70 ? '#1A7A4A' : c.score >= 50 ? '#B36A00' : '#888',
+                          }}>{c.score}%</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );

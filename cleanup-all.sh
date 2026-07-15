@@ -160,11 +160,7 @@ if [ "$SKIP_FRONTEND" = false ]; then
     print_info "Installing dependencies..."
     npm install > /dev/null 2>&1
     
-    if [ "$FORCE" = true ]; then
-      cdk destroy --force
-    else
-      cdk destroy
-    fi
+    cdk destroy --force
     
     if [ $? -eq 0 ]; then
       print_success "Frontend stack destroyed successfully"
@@ -233,11 +229,7 @@ if [ "$SKIP_RUNTIME" = false ]; then
   if [ -n "$RUNTIME_STACK_EXISTS" ]; then
     print_info "RuntimeStack found, destroying..."
     
-    if [ "$FORCE" = true ]; then
-      cdk destroy TH-AgentCoreRuntimeStack --force
-    else
-      cdk destroy TH-AgentCoreRuntimeStack
-    fi
+    cdk destroy TH-AgentCoreRuntimeStack --force
     
     if [ $? -eq 0 ]; then
       print_success "RuntimeStack destroyed successfully"
@@ -266,11 +258,7 @@ if [ "$SKIP_RUNTIME" = false ]; then
   if [ -n "$INFRA_STACK_EXISTS" ]; then
     print_info "InfraStack found, destroying..."
     
-    if [ "$FORCE" = true ]; then
-      cdk destroy TH-AgentCoreInfraStack --force
-    else
-      cdk destroy TH-AgentCoreInfraStack
-    fi
+    cdk destroy TH-AgentCoreInfraStack --force
     
     if [ $? -eq 0 ]; then
       print_success "InfraStack destroyed successfully"
@@ -339,11 +327,7 @@ if [ "$SKIP_GATEWAY" = false ]; then
       API_GATEWAY_ID="dummy"
     fi
     
-    if [ "$FORCE" = true ]; then
-      cdk destroy --context apiGatewayId=$API_GATEWAY_ID --force
-    else
-      cdk destroy --context apiGatewayId=$API_GATEWAY_ID
-    fi
+    cdk destroy --context apiGatewayId=$API_GATEWAY_ID --context knowledgeBaseId=dummy --force
     
     if [ $? -eq 0 ]; then
       print_success "Gateway stack destroyed successfully"
@@ -376,121 +360,40 @@ else
 fi
 
 ################################################################################
-# Step 4.5: Pre-cleanup Knowledge Base and S3 Vectors
+# Step 4.5: Pre-cleanup orphaned AgentCore Gateway resources
 #
-# Fully cleans up the Bedrock Knowledge Base, data sources, and S3 Vectors
-# resources BEFORE CDK destroy. This handles:
-# - Setting dataDeletionPolicy=RETAIN to avoid vector store errors
-# - Deleting data sources and the KB itself
-# - Cleaning up orphaned KBs (by name) if the CFN export is gone
-# - Deleting S3 vector bucket and index
+# The gateway resource persists in Bedrock even when the CFN stack rolls back.
+# Clean up before Step 5 so redeployment works cleanly.
 ################################################################################
 
 if [ "$SKIP_BACKEND_INFRA" = false ]; then
-  print_section "Step 4.5: Pre-cleaning Knowledge Base & S3 Vectors"
+  print_section "Step 4.5: Pre-cleaning orphaned Gateway resources"
 
-  # Try to find KB ID from CloudFormation exports first
-  KB_ID=$(aws cloudformation list-exports \
+  # ── Orphaned AgentCore Gateway cleanup ────────────────────────────────────
+  ORPHAN_GW_ID=$(aws bedrock-agentcore-control list-gateways \
     --region us-east-1 \
-    --query "Exports[?Name=='TH-KnowledgeBaseId'].Value" \
+    --query "items[?starts_with(name, 'th-concierge-gateway')].gatewayId" \
     --output text 2>/dev/null || echo "")
 
-  # If not found via exports, search by name (handles orphaned KBs)
-  if [ -z "$KB_ID" ] || [ "$KB_ID" = "None" ]; then
-    print_info "KB not found via CloudFormation exports, searching by name..."
-    KB_ID=$(aws bedrock-agent list-knowledge-bases \
-      --region us-east-1 \
-      --query "knowledgeBaseSummaries[?name=='th-travel-policies'].knowledgeBaseId" \
-      --output text 2>/dev/null || echo "")
-  fi
-
-  if [ -n "$KB_ID" ] && [ "$KB_ID" != "None" ]; then
-    print_info "Found Knowledge Base: $KB_ID"
-
-    # Set dataDeletionPolicy=RETAIN on all data sources, then delete them
-    DS_IDS=$(aws bedrock-agent list-data-sources \
-      --knowledge-base-id "$KB_ID" \
-      --region us-east-1 \
-      --query "dataSourceSummaries[].dataSourceId" \
-      --output text 2>/dev/null || echo "")
-
-    for DS_ID in $DS_IDS; do
-      if [ -n "$DS_ID" ] && [ "$DS_ID" != "None" ]; then
-        print_info "Processing data source $DS_ID..."
-
-        # Get current data source config
-        DS_NAME=$(aws bedrock-agent get-data-source \
-          --knowledge-base-id "$KB_ID" \
-          --data-source-id "$DS_ID" \
-          --region us-east-1 \
-          --query "dataSource.name" \
-          --output text 2>/dev/null || echo "")
-
-        DS_CONFIG=$(aws bedrock-agent get-data-source \
-          --knowledge-base-id "$KB_ID" \
-          --data-source-id "$DS_ID" \
-          --region us-east-1 \
-          --query "dataSource.dataSourceConfiguration" \
-          --output json 2>/dev/null || echo "")
-
-        # Set RETAIN policy
-        if [ -n "$DS_NAME" ] && [ -n "$DS_CONFIG" ] && [ "$DS_CONFIG" != "" ]; then
-          aws bedrock-agent update-data-source \
-            --knowledge-base-id "$KB_ID" \
-            --data-source-id "$DS_ID" \
-            --name "$DS_NAME" \
-            --data-deletion-policy RETAIN \
-            --data-source-configuration "$DS_CONFIG" \
-            --region us-east-1 > /dev/null 2>&1
-          print_info "  Set dataDeletionPolicy=RETAIN"
-        fi
-
-        # Delete the data source
-        aws bedrock-agent delete-data-source \
-          --knowledge-base-id "$KB_ID" \
-          --data-source-id "$DS_ID" \
-          --region us-east-1 > /dev/null 2>&1
-
-        if [ $? -eq 0 ]; then
-          print_success "  Data source $DS_ID deleted"
-        else
-          print_warning "  Could not delete data source $DS_ID"
-        fi
-      fi
+  if [ -n "$ORPHAN_GW_ID" ] && [ "$ORPHAN_GW_ID" != "None" ]; then
+    print_info "Found orphaned gateway: $ORPHAN_GW_ID — deleting targets and gateway..."
+    TARGET_IDS=$(aws bedrock-agentcore-control list-gateway-targets \
+      --gateway-identifier "$ORPHAN_GW_ID" --region us-east-1 \
+      --query "items[].targetId" --output text 2>/dev/null || echo "")
+    for TID in $TARGET_IDS; do
+      [ -n "$TID" ] && [ "$TID" != "None" ] && \
+        aws bedrock-agentcore-control delete-gateway-target \
+          --gateway-identifier "$ORPHAN_GW_ID" --target-id "$TID" \
+          --region us-east-1 > /dev/null 2>&1 && print_info "  Target $TID deleted"
     done
-
-    # Delete the Knowledge Base
-    print_info "Deleting Knowledge Base $KB_ID..."
-    aws bedrock-agent delete-knowledge-base \
-      --knowledge-base-id "$KB_ID" \
-      --region us-east-1 > /dev/null 2>&1
-
-    if [ $? -eq 0 ]; then
-      print_success "Knowledge Base deleted"
-    else
-      print_warning "Could not delete Knowledge Base — CDK will retry"
-    fi
+    sleep 5
+    aws bedrock-agentcore-control delete-gateway \
+      --gateway-identifier "$ORPHAN_GW_ID" --region us-east-1 > /dev/null 2>&1 \
+      && print_success "Orphaned gateway deleted" \
+      || print_warning "Could not delete orphaned gateway (non-fatal)"
   else
-    print_info "No Knowledge Base found, skipping"
+    print_info "No orphaned gateway found"
   fi
-
-  # Clean up S3 Vectors resources (vector index + bucket)
-  print_info "Cleaning up S3 Vectors resources..."
-
-  aws s3vectors delete-index \
-    --vector-bucket-name th-policy-vectors \
-    --index-name th-policy-index \
-    --region us-east-1 > /dev/null 2>&1 && \
-    print_success "Vector index deleted" || \
-    print_info "Vector index not found or already deleted"
-
-  sleep 3
-
-  aws s3vectors delete-vector-bucket \
-    --vector-bucket-name th-policy-vectors \
-    --region us-east-1 > /dev/null 2>&1 && \
-    print_success "Vector bucket deleted" || \
-    print_info "Vector bucket not found or already deleted"
 fi
 
 ################################################################################
@@ -524,38 +427,92 @@ if [ "$SKIP_BACKEND_INFRA" = false ]; then
     
     # Delete stacks one at a time with pauses to avoid API Gateway 429 rate limits
     # Order: reverse dependency (API Gateway first, DynamoDB last)
-    BACKEND_STACKS=("TH-ApiGatewayStack" "TH-LambdaStack" "TH-CognitoStack" "TH-KnowledgeBaseStack" "TH-DynamoDBStack")
+    BACKEND_STACKS=("TH-ApiGatewayStack" "TH-LambdaStack" "TH-CognitoStack" "TH-DynamoDBStack" "TH-KnowledgeBaseStack")
     BACKEND_DESTROY_OK=true
     
     for stack in "${BACKEND_STACKS[@]}"; do
-      STACK_EXISTS=$(aws cloudformation describe-stacks \
+      STACK_STATUS=$(aws cloudformation describe-stacks \
         --stack-name "$stack" \
         --region us-east-1 \
-        --query 'Stacks[0].StackName' \
+        --query 'Stacks[0].StackStatus' \
         --output text 2>/dev/null || echo "")
       
-      if [ -z "$STACK_EXISTS" ]; then
+      if [ -z "$STACK_STATUS" ]; then
         print_info "$stack does not exist, skipping"
+        continue
+      fi
+
+      # If already in DELETE_FAILED, force-delete with --retain-resources to skip stuck resources
+      if [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
+        print_warning "$stack is in DELETE_FAILED — force-deleting with retain..."
+        FAILED_RESOURCES=$(aws cloudformation describe-stacks \
+          --stack-name "$stack" \
+          --region us-east-1 \
+          --query 'Stacks[0].StackStatusReason' \
+          --output text 2>/dev/null || echo "")
+        # Extract logical resource IDs from the failure reason (e.g. "ManagedKB")
+        # Use python3 to parse the reason string (avoids grep -P incompatibility on macOS)
+        RETAIN_IDS=$(python3 -c "
+import re, sys
+reason = '''$FAILED_RESOURCES'''
+matches = re.findall(r'\[([^\]]+)\]', reason)
+if matches:
+    ids = matches[0].replace(',', ' ').strip()
+    print(ids)
+" 2>/dev/null || echo "")
+        if [ -n "$RETAIN_IDS" ]; then
+          aws cloudformation delete-stack \
+            --stack-name "$stack" \
+            --retain-resources $RETAIN_IDS \
+            --region us-east-1 2>/dev/null
+        else
+          aws cloudformation delete-stack --stack-name "$stack" --region us-east-1 2>/dev/null
+        fi
+        aws cloudformation wait stack-delete-complete --stack-name "$stack" --region us-east-1 2>/dev/null || true
+        STILL_EXISTS=$(aws cloudformation describe-stacks --stack-name "$stack" --region us-east-1 --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "")
+        if [ -z "$STILL_EXISTS" ] || [ "$STILL_EXISTS" = "DELETE_COMPLETE" ]; then
+          print_success "$stack force-deleted"
+        else
+          print_error "$stack still exists (status: $STILL_EXISTS)"
+          BACKEND_DESTROY_OK=false
+        fi
+        sleep 5
         continue
       fi
       
       print_info "Destroying $stack..."
-      if [ "$FORCE" = true ]; then
-        cdk destroy "$stack" --force
-      else
-        cdk destroy "$stack"
-      fi
+      cdk destroy "$stack" --force
       
       if [ $? -eq 0 ]; then
-        print_info "Waiting for $stack deletion..."
-        aws cloudformation wait stack-delete-complete --stack-name "$stack" --region us-east-1 2>/dev/null || true
+        print_info "Waiting for $stack deletion (up to 15 min)..."
+        for i in $(seq 1 90); do
+          STATUS=$(aws cloudformation describe-stacks --stack-name "$stack" --region us-east-1 \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DELETED")
+          if [ -z "$STATUS" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_COMPLETE" ]; then
+            break
+          fi
+          [ "$i" -eq 1 ] && printf "  Polling"
+          printf "."
+          sleep 10
+        done
+        echo ""
         print_success "$stack destroyed"
       else
         # If DELETE_FAILED, retry once after a pause (handles 429 rate limits)
         print_warning "$stack failed, retrying after 10s pause..."
         sleep 10
         aws cloudformation delete-stack --stack-name "$stack" --region us-east-1 2>/dev/null
-        aws cloudformation wait stack-delete-complete --stack-name "$stack" --region us-east-1 2>/dev/null
+        for i in $(seq 1 90); do
+          STATUS=$(aws cloudformation describe-stacks --stack-name "$stack" --region us-east-1 \
+            --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "DELETED")
+          if [ -z "$STATUS" ] || [ "$STATUS" = "DELETED" ] || [ "$STATUS" = "DELETE_COMPLETE" ]; then
+            break
+          fi
+          [ "$i" -eq 1 ] && printf "  Polling"
+          printf "."
+          sleep 10
+        done
+        echo ""
         
         # Check if it actually got deleted
         STILL_EXISTS=$(aws cloudformation describe-stacks \
@@ -601,32 +558,44 @@ else
 fi
 
 ################################################################################
+# Step 5.5: Bedrock KB cleanup (safety net)
+# CfnDataSource + CfnKnowledgeBase with RemovalPolicy.DESTROY handle deletion
+# automatically via CDK. This step only cleans up orphaned KBs left by failed
+# deployments where the stack was never created.
+################################################################################
+
+if [ "$SKIP_BACKEND_INFRA" = false ]; then
+  ORPHAN_KB=$(aws bedrock-agent list-knowledge-bases --region us-east-1 \
+    --query "knowledgeBaseSummaries[?name=='th-travel-policies'].knowledgeBaseId" \
+    --output text 2>/dev/null || echo "")
+
+  if [ -n "$ORPHAN_KB" ] && [ "$ORPHAN_KB" != "None" ]; then
+    KB_IN_CFN=$(aws cloudformation list-exports --region us-east-1 \
+      --query "Exports[?Name=='TH-KnowledgeBaseId'].Value" --output text 2>/dev/null || echo "")
+    if [ -z "$KB_IN_CFN" ] || [ "$KB_IN_CFN" = "None" ]; then
+      print_info "Found orphaned KB $ORPHAN_KB (not in CFN) — deleting..."
+      DS_IDS=$(aws bedrock-agent list-data-sources --knowledge-base-id "$ORPHAN_KB" \
+        --region us-east-1 --query "dataSourceSummaries[].dataSourceId" --output text 2>/dev/null)
+      for DS_ID in $DS_IDS; do
+        [ -n "$DS_ID" ] && aws bedrock-agent delete-data-source \
+          --knowledge-base-id "$ORPHAN_KB" --data-source-id "$DS_ID" \
+          --region us-east-1 > /dev/null 2>&1 && sleep 5
+      done
+      aws bedrock-agent delete-knowledge-base --knowledge-base-id "$ORPHAN_KB" \
+        --region us-east-1 > /dev/null 2>&1 && print_success "Orphaned KB deleted"
+    fi
+  fi
+fi
+
+################################################################################
 # Step 6: Cleanup SES Email Identity
 ################################################################################
 
-print_section "Step 6: Cleaning up SES Email Identity"
-
-# Find and delete any TH-related SES email identities
-# The sender email was stored in the Lambda stack outputs or state
-SENDER_EMAIL=""
-if [ -f "$OUTPUTS_DIR/backend-infrastructure.json" ]; then
-  SENDER_EMAIL=$(node -e "const d=JSON.parse(require('fs').readFileSync('$OUTPUTS_DIR/backend-infrastructure.json','utf8')); console.log((d['TH-CognitoStack']||{})['AppUserEmail']||'')" 2>/dev/null || echo "")
-fi
-
-if [ -n "$SENDER_EMAIL" ]; then
-  print_info "Deleting SES email identity: $SENDER_EMAIL"
-  aws sesv2 delete-email-identity \
-    --email-identity "$SENDER_EMAIL" \
-    --region us-east-1 > /dev/null 2>&1
-
-  if [ $? -eq 0 ]; then
-    print_success "SES email identity deleted"
-  else
-    print_info "SES email identity not found or already deleted"
-  fi
-else
-  print_info "No SES email identity found to clean up"
-fi
+print_section "Step 6: SES Email Identity"
+# SES email identity is intentionally NOT deleted during cleanup.
+# Once verified, it should persist across deploy/cleanup cycles so
+# the user does not receive repeated verification emails.
+print_info "SES email identity retained (already verified — no action needed)"
 
 ################################################################################
 # Cleanup Complete

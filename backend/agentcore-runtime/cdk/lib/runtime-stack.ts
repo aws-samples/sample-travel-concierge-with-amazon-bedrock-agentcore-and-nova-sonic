@@ -96,7 +96,7 @@ export class RuntimeStack extends cdk.Stack {
 
     // Step 3: Wait for build to complete using a custom Lambda
     const buildWaiterFunction = new lambda.Function(this, 'BuildWaiterFunction', {
-      runtime: lambda.Runtime.NODEJS_LATEST,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: 'index.handler',
       code: lambda.Code.fromInline(`
         const { CodeBuildClient, BatchGetBuildsCommand } = require('@aws-sdk/client-codebuild');

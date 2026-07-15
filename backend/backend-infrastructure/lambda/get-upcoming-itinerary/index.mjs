@@ -54,8 +54,8 @@ export const handler = async (event) => {
       const shown = bookings.slice(0, cap);
       const flightDescriptions = shown.map(b => {
         const fn = b.flightNumber ? spaceOut(b.flightNumber) : 'unknown flight';
-        const from = b.departureAirport || b.departureCity || 'unknown origin';
-        const to = b.arrivalAirport || b.arrivalCity || 'unknown destination';
+        const from = b.departureAirport ? spaceOut(b.departureAirport) : (b.departureCity || 'unknown origin');
+        const to = b.arrivalAirport ? spaceOut(b.arrivalAirport) : (b.arrivalCity || 'unknown destination');
         const dt = b.departureTime ? formatDate(b.departureTime) : 'unknown date';
         // Include bookingId so the agent can use it for follow-up tool calls
         const bid = b.bookingId ? ` (booking ${b.bookingId})` : '';

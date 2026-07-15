@@ -113,13 +113,15 @@ async function createGateway(props) {
   const stage = props.Stage;
   const region = props.Region;
   const accountId = props.AccountId;
+  const knowledgeBaseId = props.KnowledgeBaseId;
+  const knowledgeBaseArn = `arn:aws:bedrock:${region}:${accountId}:knowledge-base/${knowledgeBaseId}`;
 
   console.log(`Creating Gateway: ${gatewayName}`);
 
   // Step 1: Create IAM role
   const roleName = `${gatewayName}-service-role`;
   const apiGatewayArn = `arn:aws:execute-api:${region}:${accountId}:${apiGatewayId}/${stage}/*/*`;
-  const roleArn = await createGatewayServiceRole(roleName, apiGatewayArn);
+  const roleArn = await createGatewayServiceRole(roleName, apiGatewayArn, knowledgeBaseArn);
 
   // Wait for IAM propagation
   console.log('Waiting for IAM role propagation...');
@@ -182,7 +184,7 @@ async function createGateway(props) {
   // Wait for gateway to be ready
   await waitForGatewayReady(gatewayId);
 
-  // Step 5: Create Gateway Target
+  // Step 5: Create API Gateway target
   console.log('Creating Gateway Target...');
   const targetPayload = {
     gatewayIdentifier: gatewayId,
@@ -207,16 +209,24 @@ async function createGateway(props) {
   console.log('Target payload:', JSON.stringify(targetPayload, null, 2).substring(0, 2000));
 
   let targetResp;
+  let targetId;
   try {
     targetResp = await agentcoreClient.send(new CreateGatewayTargetCommand(targetPayload));
+    targetId = targetResp.targetIdentifier || targetResp.targetId;
+    console.log(`Target created: ${targetId}`);
   } catch (targetErr) {
-    console.error('CreateGatewayTarget error:', targetErr.message);
-    console.error('Full error:', JSON.stringify(targetErr, Object.getOwnPropertyNames(targetErr)).substring(0, 2000));
-    throw targetErr;
+    if (targetErr.name === 'ConflictException' || targetErr.message?.includes('already exists')) {
+      console.log('Target th-backend-api already exists, finding existing one...');
+      const listResp = await agentcoreClient.send(new ListGatewayTargetsCommand({ gatewayIdentifier: gatewayId }));
+      const existing = (listResp.items || []).find(t => t.name === 'th-backend-api');
+      if (!existing) throw new Error('Target already exists but could not be found');
+      targetId = existing.targetId || existing.targetIdentifier;
+      console.log(`Reusing existing target: ${targetId}`);
+    } else {
+      console.error('CreateGatewayTarget error:', targetErr.message);
+      throw targetErr;
+    }
   }
-
-  const targetId = targetResp.targetIdentifier || targetResp.targetId;
-  console.log(`Target created: ${targetId}`);
 
   await waitForTargetReady(gatewayId, targetId);
 
@@ -247,6 +257,8 @@ async function updateGateway(gatewayId, props) {
   const region = props.Region;
   const accountId = props.AccountId;
   const gatewayName = props.GatewayName;
+  const knowledgeBaseId = props.KnowledgeBaseId;
+  const knowledgeBaseArn = `arn:aws:bedrock:${region}:${accountId}:knowledge-base/${knowledgeBaseId}`;
 
   console.log(`Updating Gateway: ${gatewayId}`);
 
@@ -256,10 +268,10 @@ async function updateGateway(gatewayId, props) {
   const gatewayArn = `arn:aws:bedrock:${region}:${accountId}:agent-gateway/${gatewayId}`;
   console.log(`Gateway URL: ${gatewayUrl}`);
 
-  // Step 2: Update IAM role policy (in case API Gateway ARN changed)
+  // Step 2: Update IAM role policy (in case API Gateway ARN or KB changed)
   const roleName = `${gatewayName}-service-role`;
   const apiGatewayArn = `arn:aws:execute-api:${region}:${accountId}:${apiGatewayId}/${stage}/*/*`;
-  const roleArn = await createGatewayServiceRole(roleName, apiGatewayArn);
+  const roleArn = await createGatewayServiceRole(roleName, apiGatewayArn, knowledgeBaseArn);
 
   // Step 3: Update existing target with fresh schema (or create if none exists)
   console.log('Listing existing targets...');
@@ -347,7 +359,7 @@ async function updateGateway(gatewayId, props) {
 
 // ─── IAM Role ────────────────────────────────────────────────────────────────
 
-async function createGatewayServiceRole(roleName, apiGatewayArn) {
+async function createGatewayServiceRole(roleName, apiGatewayArn, knowledgeBaseArn) {
   const trustPolicy = JSON.stringify({
     Version: '2012-10-17',
     Statement: [{
@@ -359,11 +371,26 @@ async function createGatewayServiceRole(roleName, apiGatewayArn) {
 
   const policyDocument = JSON.stringify({
     Version: '2012-10-17',
-    Statement: [{
-      Effect: 'Allow',
-      Action: 'execute-api:Invoke',
-      Resource: apiGatewayArn,
-    }],
+    Statement: [
+      {
+        Effect: 'Allow',
+        Action: 'execute-api:Invoke',
+        Resource: apiGatewayArn,
+      },
+      {
+        Effect: 'Allow',
+        Action: [
+          'bedrock:GetKnowledgeBase',
+          'bedrock:Retrieve',
+        ],
+        Resource: knowledgeBaseArn,
+      },
+      {
+        Effect: 'Allow',
+        Action: 'bedrock:AgenticRetrieveStream',
+        Resource: '*',
+      },
+    ],
   });
 
   try {
@@ -428,11 +455,11 @@ function parseOpenApiSchema(schema) {
   const TOOL_DESCRIPTIONS = {
     'PUT /seat/{bookingId}/{passengerId}': {
       name: 'UpdateSeat',
-      description: 'Change a passenger seat assignment. Request body requires JSON: {"flightNumber": "AA2350", "date": "2026-05-15", "newSeat": "14B"}. To find group seats, send: {"action": "find-group-seats", "flightNumber": "AA2350", "date": "2026-05-15", "partySize": 3}.',
+      description: 'Assign a new seat to a passenger, or find adjacent group seats. To assign: {"flightNumber": "SW2350", "date": "2026-10-10", "newSeat": "14B"}. To find adjacent seats for a group (does NOT assign — call again with newSeat per passenger to assign): {"action": "find-group-seats", "flightNumber": "SW2350", "date": "2026-10-10", "partySize": 3}.',
     },
     'PUT /passenger/{bookingId}/{passengerId}': {
       name: 'UpdatePassenger',
-      description: 'Update passenger details. Request body requires JSON with "action" field. For meal: {"action": "meal", "mealPreference": "VEGETARIAN"}. For baggage: {"action": "baggage", "extraChecked": 1}. For assistance: {"action": "assistance", "specialAssistance": ["WHEELCHAIR"]}.',
+      description: 'Update passenger details. Request body requires JSON with "action" field. For meal: {"action": "meal", "mealPreference": "VEGETARIAN"} — valid values: REGULAR, VEGETARIAN, VEGAN, KOSHER, HALAL, GLUTEN_FREE. For baggage: {"action": "baggage", "extraChecked": 1}. For assistance: {"action": "assistance", "specialAssistance": ["WHEELCHAIR"]}.',
     },
     'PUT /preferences/{customerId}/{category}': {
       name: 'UpdatePreferences',
@@ -440,19 +467,19 @@ function parseOpenApiSchema(schema) {
     },
     'GET /itinerary/{customerId}': {
       name: 'GetUpcomingItinerary',
-      description: 'Get all upcoming flight bookings for a customer.',
+      description: 'Get upcoming flight bookings (flight numbers, routes, dates, booking IDs) for a customer. Does NOT return seat assignments or meal preferences — use GetPassengerDetails for those.',
     },
     'GET /booking/{customerId}/{bookingId}': {
       name: 'GetBookingDetails',
-      description: 'Get detailed information about a specific booking.',
+      description: 'Get fare class, booking status, route, and pricing for a specific booking. Use when the customer asks about fare class or price. Does NOT return seat assignments or passenger details — use GetPassengerDetails for those.',
     },
     'GET /seatmap/{flightNumber}/{date}': {
       name: 'GetSeatMap',
-      description: 'Get seat availability map for a specific flight and date. Optional query parameter: seatType=AISLE, seatType=WINDOW, or seatType=MIDDLE to filter by seat type. When customer asks for aisle/window/middle seats specifically, pass the seatType parameter.',
+      description: 'Get seat availability map for a specific flight and date — use to show available seats when the customer wants to browse or switch seats. Use flightNumber and date (YYYY-MM-DD) from GetUpcomingItinerary. Optional query parameter: seatType=AISLE, seatType=WINDOW, or seatType=MIDDLE to filter — always pass seatType when the customer asks for a specific type. Do NOT call this to look up the seat type of an already-assigned seat — you already know that from GetPassengerDetails.',
     },
     'GET /passengers/{bookingId}': {
       name: 'GetPassengerDetails',
-      description: 'Get all passenger details for a booking including seat, meal, baggage, and assistance info.',
+      description: 'Get all passenger details for a booking — including seat assignments, meal preferences, baggage, and assistance info. Use this whenever the customer asks about seats or meals. Does NOT include baggage fees, fare rules, or policy details — use QueryPolicy for those. Do NOT use GetUpcomingItinerary for seats or meals.',
     },
     'GET /loyalty/{customerId}': {
       name: 'GetLoyaltyStatus',
@@ -460,7 +487,7 @@ function parseOpenApiSchema(schema) {
     },
     'GET /upgrades/{bookingId}': {
       name: 'GetUpgradeOptions',
-      description: 'Get available upgrade options for a booking.',
+      description: 'Get available cabin upgrade options (e.g. Economy to Business) for a booking. Requires customerId as a query parameter.',
     },
     'GET /purchases/{customerId}': {
       name: 'GetPurchaseHistory',
@@ -469,10 +496,6 @@ function parseOpenApiSchema(schema) {
     'GET /preferences/{customerId}': {
       name: 'GetPreferences',
       description: 'Get learned customer preferences across all categories.',
-    },
-    'POST /policy/query': {
-      name: 'QueryPolicy',
-      description: 'Search the travel policy knowledge base. Request body: {"question": "What is the baggage allowance?"}.',
     },
     'POST /conversation/{customerId}/{sessionId}': {
       name: 'SaveConversation',
@@ -484,7 +507,7 @@ function parseOpenApiSchema(schema) {
     },
     'GET /flight-status/{flightNumber}/{date}': {
       name: 'GetFlightStatus',
-      description: 'Get real-time flight status including delays, gate changes, and cancellations. Returns status (ON_TIME, DELAYED, CANCELLED, BOARDING, DEPARTED, ARRIVED), scheduled and estimated times, gate, terminal, and any alerts. Date format: YYYY-MM-DD.',
+      description: 'Get real-time flight status including delays, gate changes, and cancellations. Returns status (ON_TIME, DELAYED, CANCELLED, BOARDING, DEPARTED, ARRIVED), scheduled and estimated times, gate, terminal, and any alerts. Date format: YYYY-MM-DD — extract just the date part from the itinerary departureTime (e.g. "2026-10-10T14:30:00-05:00" → "2026-10-10").',
     },
     'GET /rebook-options/{customerId}/{bookingId}': {
       name: 'GetRebookOptions',
@@ -492,7 +515,7 @@ function parseOpenApiSchema(schema) {
     },
     'PUT /rebook/{customerId}/{bookingId}': {
       name: 'RebookFlight',
-      description: 'Rebook a flight to a new date/flight. Moves all passengers in the booking, releases old seats, assigns new seats if provided. Request body: {"newFlightNumber": "AA2351", "newDate": "2026-05-23", "newDepartureTime": "2026-05-23T17:15:00-05:00", "newArrivalTime": "2026-05-23T21:05:00-05:00", "fareDifference": 0, "selectedSeats": ["16A", "16B", "16C"]}. Sends email confirmation.',
+      description: 'Rebook a flight to a new date/flight. Moves all passengers, releases old seats. Always include selectedSeats from GetRebookOptions — omitting it clears all seat assignments. Request body: {"newFlightNumber": "SW2351", "newDate": "2026-10-18", "newDepartureTime": "2026-10-18T17:15:00-05:00", "newArrivalTime": "2026-10-18T21:05:00-05:00", "fareDifference": 0, "selectedSeats": ["16A", "16B", "16C"]}.',
     },
   };
 
@@ -667,11 +690,6 @@ async function deleteIamRole(roleName) {
     if (e.name === 'NoSuchEntityException') console.log(`IAM role ${roleName} already deleted`);
     else console.log(`Error deleting IAM role: ${e.message}`);
   }
-}
-
-async function getGatewayUrl(gatewayId) {
-  const resp = await agentcoreClient.send(new GetGatewayCommand({ gatewayIdentifier: gatewayId }));
-  return resp.gatewayUrl || '';
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────

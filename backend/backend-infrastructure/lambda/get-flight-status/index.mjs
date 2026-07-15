@@ -27,7 +27,9 @@ const formatTime = (isoString) => {
  */
 export const handler = async (event) => {
   try {
-    const { flightNumber, date } = event.pathParameters || {};
+    const { flightNumber: rawFlightNumber, date } = event.pathParameters || {};
+    // Strip spaces and URL-encoding — model may pass "S W 2 3 5 0" or "S%20W%202%203%205%200"
+    const flightNumber = decodeURIComponent(rawFlightNumber || '').replace(/\s+/g, '');
 
     if (!flightNumber || !date) {
       return { statusCode: 400, body: JSON.stringify({ error: 'flightNumber and date are required' }) };

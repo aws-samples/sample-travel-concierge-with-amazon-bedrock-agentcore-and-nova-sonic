@@ -1,3 +1,34 @@
 *.pptx
 ~$*.pptx
 travel-concierge-architecture/
+
+# Deployment outputs — contain live resource IDs, ARNs, account numbers
+cdk-outputs/
+.deployment-state.json
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Backup files
+*_backup.py
+*-backup.py
+*_backup.ts
+
+# Logs
+*.log
+/tmp/
+
+# CDK synthesis output (per CDK subproject)
+cdk.out/
+
+# CDK local verification output
+cdk-verify-out/
+
+# Flow visualizer (local demo tool — not part of the deployable solution)
+flow-visualizer.html
+flow-visualizer.gif
+assets/flow-visualizer.gif
+
+# Architecture diagram assets (kept outside repo)
+travel-concierge-architecture.png

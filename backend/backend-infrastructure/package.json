@@ -12,19 +12,19 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "aws-cdk": "^2.200.0",
+    "aws-cdk": "^2.1129.0",
     "esbuild": "^0.28.0",
     "typescript": "~5.7.0"
   },
   "dependencies": {
     "@aws-crypto/sha256-js": "^5.2.0",
-    "@aws-sdk/client-bedrock-agent": "^3.1030.0",
+    "@aws-sdk/client-bedrock-agent": "^3.1079.0",
     "@aws-sdk/client-opensearchserverless": "^3.1030.0",
     "@aws-sdk/client-s3vectors": "^3.1030.0",
     "@aws-sdk/client-sts": "^3.1030.0",
     "@aws-sdk/credential-provider-node": "^3.972.30",
     "@smithy/signature-v4": "^5.3.13",
-    "aws-cdk-lib": "^2.200.0",
+    "aws-cdk-lib": "^2.261.0",
     "constructs": "^10.0.0"
   }
 }

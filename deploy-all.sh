@@ -137,6 +137,9 @@ print_section "Idempotent Deployment - Mode: $MODE"
 # Backend Infrastructure
 ################################################################################
 
+# Refresh credentials before Backend Infrastructure (first major CDK step)
+ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
+
 print_section "Backend Infrastructure"
 
 BACKEND_DEPLOYED=$(is_deployed "backend-infrastructure")
@@ -201,7 +204,7 @@ if [ "$BACKEND_DEPLOYED" = "false" ]; then
     
     cdk deploy --all \
       --require-approval never \
-      --concurrency 1 \
+      --concurrency 3 \
       --parameters TH-CognitoStack:UserEmail="$USER_EMAIL" \
       --parameters TH-CognitoStack:UserName="$USER_NAME" \
       --parameters TH-LambdaStack:SenderEmail="$USER_EMAIL" \
@@ -218,13 +221,25 @@ if [ "$BACKEND_DEPLOYED" = "false" ]; then
   update_state "backend-infrastructure" true '{"stacks": ["TH-DynamoDBStack", "TH-KnowledgeBaseStack", "TH-LambdaStack", "TH-ApiGatewayStack", "TH-CognitoStack"]}'
   print_success "Backend infrastructure deployed"
   
-  # Create SES email identity for notifications (idempotent — skips if already exists)
+  # Create SES email identity for notifications (only if not already verified)
   if [ -n "$USER_EMAIL" ]; then
-    print_info "Verifying SES email identity for $USER_EMAIL..."
-    aws sesv2 create-email-identity \
+    SES_STATUS=$(aws sesv2 get-email-identity \
       --email-identity "$USER_EMAIL" \
-      --region us-east-1 > /dev/null 2>&1 || true
-    print_success "SES email identity created (check inbox for verification link)"
+      --region us-east-1 \
+      --query "VerifiedForSendingStatus" \
+      --output text 2>/dev/null || echo "NOT_FOUND")
+
+    if [ "$SES_STATUS" = "True" ]; then
+      print_info "SES email identity already verified for $USER_EMAIL"
+    elif [ "$SES_STATUS" = "False" ]; then
+      print_info "SES email identity exists but not yet verified — check your inbox for the verification link"
+    else
+      print_info "Creating SES email identity for $USER_EMAIL..."
+      aws sesv2 create-email-identity \
+        --email-identity "$USER_EMAIL" \
+        --region us-east-1 > /dev/null 2>&1 || true
+      print_success "SES email identity created — check inbox for verification link"
+    fi
   fi
 
   cd ../..
@@ -233,8 +248,75 @@ else
 fi
 
 ################################################################################
+# Knowledge Base Ingestion
+################################################################################
+
+print_section "Knowledge Base — Syncing Policy Documents"
+
+KB_ID=$(aws cloudformation list-exports --region us-east-1 \
+  --query "Exports[?Name=='TH-KnowledgeBaseId'].Value" --output text 2>/dev/null || echo "")
+
+if [ -n "$KB_ID" ] && [ "$KB_ID" != "None" ]; then
+  DS_ID=$(aws bedrock-agent list-data-sources --knowledge-base-id "$KB_ID" \
+    --region us-east-1 --query "dataSourceSummaries[0].dataSourceId" --output text 2>/dev/null || echo "")
+
+  if [ -n "$DS_ID" ] && [ "$DS_ID" != "None" ]; then
+    # Check if already indexed (idempotent — skip if docs already indexed)
+    ALREADY_INDEXED=$(aws bedrock-agent list-ingestion-jobs \
+      --knowledge-base-id "$KB_ID" --data-source-id "$DS_ID" \
+      --region us-east-1 \
+      --query "ingestionJobSummaries[?status=='COMPLETE'].statistics.numberOfNewDocumentsIndexed" \
+      --output text 2>/dev/null | awk '{s+=$1} END{print s}')
+
+    if [ "${ALREADY_INDEXED:-0}" -gt 0 ]; then
+      print_success "Knowledge Base already indexed ($ALREADY_INDEXED documents) — skipping sync"
+    else
+      print_info "Starting Knowledge Base ingestion (KB: $KB_ID)..."
+      JOB_ID=$(aws bedrock-agent start-ingestion-job \
+        --knowledge-base-id "$KB_ID" \
+        --data-source-id "$DS_ID" \
+        --region us-east-1 \
+        --query "ingestionJob.ingestionJobId" --output text 2>/dev/null || echo "")
+
+      if [ -n "$JOB_ID" ] && [ "$JOB_ID" != "None" ]; then
+        print_info "Ingestion job started: $JOB_ID"
+        print_info "Waiting for ingestion to complete (this takes ~2-5 minutes)..."
+        for i in $(seq 1 30); do
+          JOB_STATUS=$(aws bedrock-agent get-ingestion-job \
+            --knowledge-base-id "$KB_ID" --data-source-id "$DS_ID" \
+            --ingestion-job-id "$JOB_ID" --region us-east-1 \
+            --query "ingestionJob.{status:status,indexed:statistics.numberOfNewDocumentsIndexed}" \
+            --output text 2>/dev/null)
+          STATUS=$(echo "$JOB_STATUS" | awk '{print $2}')
+          INDEXED=$(echo "$JOB_STATUS" | awk '{print $1}')
+          if [ "$STATUS" = "COMPLETE" ]; then
+            print_success "Knowledge Base sync complete — $INDEXED documents indexed"
+            break
+          elif [ "$STATUS" = "FAILED" ]; then
+            print_error "Knowledge Base ingestion failed"
+            break
+          fi
+          printf "."
+          sleep 10
+        done
+        echo ""
+      else
+        print_warning "Could not start ingestion job (non-fatal)"
+      fi
+    fi
+  else
+    print_warning "Data source not found — skipping KB sync"
+  fi
+else
+  print_warning "Knowledge Base ID not found — skipping KB sync"
+fi
+
+################################################################################
 # AgentCore Gateway (CDK)
 ################################################################################
+
+# Refresh credentials before Gateway (backend may have taken 15+ min)
+ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
 
 print_section "AgentCore Gateway (CDK)"
 
@@ -262,6 +344,13 @@ if [ "$GATEWAY_DEPLOYED" = "false" ]; then
     print_error "Backend API Gateway ID not found. Deploy backend infrastructure first."
     exit 1
   fi
+
+  KB_ID=$(json_val "$OUTPUTS_DIR/backend-infrastructure.json" "TH-KnowledgeBaseStack" "KnowledgeBaseId")
+
+  if [ -z "$KB_ID" ]; then
+    print_error "Bedrock Knowledge Base ID not found. Deploy backend infrastructure first."
+    exit 1
+  fi
   
   cd backend/agentcore-gateway/cdk
   
@@ -272,10 +361,12 @@ if [ "$GATEWAY_DEPLOYED" = "false" ]; then
   cdk deploy \
     --require-approval never \
     --context apiGatewayId="$API_GATEWAY_ID" \
+    --context knowledgeBaseId="$KB_ID" \
     --outputs-file "../../../$OUTPUTS_DIR/agentcore-gateway.json"
   
   # Extract Gateway ID from outputs
   NEW_GATEWAY_ID=$(json_val "../../../$OUTPUTS_DIR/agentcore-gateway.json" "TH-AgentCoreGatewayStack" "GatewayId")
+  GATEWAY_ROLE_ARN=$(json_val "../../../$OUTPUTS_DIR/agentcore-gateway.json" "TH-AgentCoreGatewayStack" "GatewayRoleArn")
   
   if [ -n "$NEW_GATEWAY_ID" ]; then
     update_state "agentcore-gateway" true "{\"gateway_id\": \"$NEW_GATEWAY_ID\", \"stack\": \"TH-AgentCoreGatewayStack\"}"
@@ -284,7 +375,49 @@ if [ "$GATEWAY_DEPLOYED" = "false" ]; then
     print_warning "Gateway deployed but ID not found in outputs"
     update_state "agentcore-gateway" true "{\"stack\": \"TH-AgentCoreGatewayStack\"}"
   fi
-  
+
+  # Add Managed Knowledge Base connector target via AWS CLI
+  # (The @aws-sdk/client-bedrock-agentcore-control SDK does not yet support the
+  #  connector target type, so we use the CLI which uses the latest service model)
+  if [ -n "$NEW_GATEWAY_ID" ] && [ -n "$KB_ID" ]; then
+    print_info "Adding Managed KB connector target to Gateway..."
+
+    # Add bedrock:GetKnowledgeBase, bedrock:Retrieve, bedrock:AgenticRetrieveStream to the gateway role
+    REGION=$(aws configure get region 2>/dev/null || echo "us-east-1")
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    KB_ARN="arn:aws:bedrock:${REGION}:${ACCOUNT_ID}:knowledge-base/${KB_ID}"
+
+    if [ -n "$GATEWAY_ROLE_ARN" ]; then
+      ROLE_NAME=$(echo "$GATEWAY_ROLE_ARN" | sed 's|.*/||')
+      aws iam put-role-policy \
+        --role-name "$ROLE_NAME" \
+        --policy-name "KBConnectorPolicy" \
+        --policy-document "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"bedrock:GetKnowledgeBase\",\"bedrock:Retrieve\"],\"Resource\":\"${KB_ARN}\"},{\"Effect\":\"Allow\",\"Action\":\"bedrock:AgenticRetrieveStream\",\"Resource\":\"*\"}]}" \
+        --region us-east-1 2>/dev/null && print_info "KB permissions added to gateway role"
+    fi
+
+    # Check if KB target already exists
+    EXISTING_KB_TARGET=$(aws bedrock-agentcore-control list-gateway-targets \
+      --gateway-identifier "$NEW_GATEWAY_ID" \
+      --region us-east-1 \
+      --query "items[?name=='th-policy-kb'].targetId" \
+      --output text 2>/dev/null)
+
+    if [ -z "$EXISTING_KB_TARGET" ] || [ "$EXISTING_KB_TARGET" = "None" ]; then
+      aws bedrock-agentcore-control create-gateway-target \
+        --gateway-identifier "$NEW_GATEWAY_ID" \
+        --name "th-policy-kb" \
+        --description "SkyWave Airlines policy documents via Bedrock Managed Knowledge Base" \
+        --target-configuration "{\"mcp\":{\"connector\":{\"source\":{\"connectorId\":\"bedrock-knowledge-bases\"},\"configurations\":[{\"name\":\"AgenticRetrieveStream\",\"parameterValues\":{\"retrievers\":[{\"description\":\"SkyWave Airlines policy documents\",\"configuration\":{\"knowledgeBase\":{\"knowledgeBaseId\":\"${KB_ID}\"}}}],\"agenticRetrieveConfiguration\":{\"foundationModelType\":\"MANAGED\",\"rerankingModelType\":\"MANAGED\"}}},{\"name\":\"Retrieve\",\"parameterValues\":{\"knowledgeBaseId\":\"${KB_ID}\"}}]}}}" \
+        --credential-provider-configurations "[{\"credentialProviderType\":\"GATEWAY_IAM_ROLE\"}]" \
+        --region us-east-1 > /dev/null 2>&1 \
+        && print_success "Managed KB connector target created" \
+        || print_warning "KB connector target creation failed (non-fatal — policy queries may not work)"
+    else
+      print_info "KB connector target already exists: $EXISTING_KB_TARGET"
+    fi
+  fi
+
   cd ../../..
 else
   print_success "AgentCore Gateway up to date"
@@ -293,6 +426,9 @@ fi
 ################################################################################
 # AgentCore Runtime
 ################################################################################
+
+# Refresh credentials before Runtime (CodeBuild takes 10-15 min, token must be fresh)
+ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
 
 print_section "AgentCore Runtime"
 
@@ -358,6 +494,8 @@ SHOULD_DEPLOY_SYNTHETIC=false
 if [ "$WITH_SYNTHETIC_DATA" = true ]; then
   SHOULD_DEPLOY_SYNTHETIC=true
 elif [ "$SKIP_SYNTHETIC_DATA" = false ]; then
+  # Refresh credentials before synthetic data seeding
+  ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
   # Ask user interactively
   print_section "Synthetic Data (Optional)"
   echo ""
@@ -427,6 +565,8 @@ if [ "$WITH_FRONTEND" = true ]; then
 elif [ "$SKIP_FRONTEND" = false ]; then
   # Check if frontend directory exists
   if [ -d "frontend" ]; then
+    # Refresh credentials before frontend deploy
+    ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
     print_section "Frontend (Optional)"
     echo ""
     print_info "Would you like to deploy the frontend application?"
@@ -757,4 +897,8 @@ echo "  • Copy and paste one of the test commands above"
 echo "  • Run './status.sh' to view deployment status"
 echo "  • Run './deploy-all.sh' again to update (idempotent)"
 echo "  • Run './cleanup-all.sh --dry-run' to preview cleanup"
+echo ""
+echo -e "${YELLOW}⏳ NOTE: If this was a fresh deployment, the Knowledge Base needs~5 minutes${NC}"
+echo -e "${YELLOW}   to fully index documents before policy queries return citations.${NC}"
+echo -e "${YELLOW}   Wait a few minutes before testing baggage/cancellation/policy questions.${NC}"
 echo ""

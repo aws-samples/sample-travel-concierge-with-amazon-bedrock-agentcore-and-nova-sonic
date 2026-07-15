@@ -60,7 +60,11 @@ export const handler = async (event) => {
         return `${name} in seat ${seat}`;
       });
 
-      summary = `Booking ${spaceOut(bookingId)} has ${passengers.length} passenger${passengers.length > 1 ? 's' : ''}.\n`;
+      summary = `Booking ${spaceOut(bookingId)} has ${passengers.length} passenger${passengers.length > 1 ? 's' : ''}`;
+      if (flightNumber && departureAirport && arrivalAirport) {
+        summary += ` on flight ${spaceOut(flightNumber)} from ${spaceOut(departureAirport)} to ${spaceOut(arrivalAirport)}`;
+      }
+      summary += `.\n`;
       summary += paxDescriptions.join('\n');
       summary += '.';
     }
