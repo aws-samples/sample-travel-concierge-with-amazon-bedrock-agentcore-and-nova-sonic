@@ -260,7 +260,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 if __name__ == "__main__":
-    host = os.getenv("HOST", "0.0.0.0")
+    host = os.getenv("HOST", "0.0.0.0")  # nosec B104 — binding to all interfaces is required for container deployments (AgentCore Runtime runs in a managed container and routes traffic via its own network layer)
     port = int(os.getenv("PORT", "8080"))
     log_config = uvicorn.config.LOGGING_CONFIG
     log_config["loggers"]["uvicorn.access"]["level"] = "WARNING"

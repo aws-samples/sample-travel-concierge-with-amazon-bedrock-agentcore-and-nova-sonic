@@ -487,7 +487,7 @@ function parseOpenApiSchema(schema) {
     },
     'GET /upgrades/{bookingId}': {
       name: 'GetUpgradeOptions',
-      description: 'Get available cabin upgrade options (e.g. Economy to Business) for a booking. Requires customerId as a query parameter.',
+      description: 'Get available cabin upgrade options (e.g. Economy to Business) for a booking. Only requires bookingId — customerId is resolved automatically.',
     },
     'GET /purchases/{customerId}': {
       name: 'GetPurchaseHistory',

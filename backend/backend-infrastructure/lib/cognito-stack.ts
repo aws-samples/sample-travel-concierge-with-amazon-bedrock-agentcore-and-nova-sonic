@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 
 export interface CognitoStackProps extends cdk.StackProps {
   // Parameters passed via --parameters during deploy
@@ -110,6 +111,9 @@ export class CognitoStack extends cdk.Stack {
     });
 
     // Grant authenticated users permission to invoke AgentCore Runtime (including WebSocket streaming)
+    // Note: The AgentCore Runtime ARN is created in a separate CDK app that deploys after this stack.
+    // A cross-stack reference would create a circular dependency. The Identity Pool trust policy
+    // restricts role assumption to authenticated users of this specific application only.
     this.authenticatedRole.addToPolicy(
       new iam.PolicyStatement({
         actions: [
@@ -178,5 +182,21 @@ export class CognitoStack extends cdk.Stack {
       value: userEmail.valueAsString,
       description: 'Test user email',
     });
+
+    // Suppress cdk-nag finding for AgentCore wildcard resource permission.
+    // The AgentCore Runtime ARN is created in a separate CDK stack that deploys after this one.
+    // A cross-stack reference would create a circular dependency. The default parameter value
+    // scopes to agent-runtime resource type; the Identity Pool trust policy further restricts
+    // access to authenticated users of this specific application only.
+    NagSuppressions.addResourceSuppressions(
+      this.authenticatedRole,
+      [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'AgentCore Runtime ARN is not known at Cognito stack deploy time (created in a later stack). Resource is scoped to agent-runtime resource type via CfnParameter default. Identity Pool trust policy restricts access to authenticated users of this application only.',
+        },
+      ],
+      true
+    );
   }
 }

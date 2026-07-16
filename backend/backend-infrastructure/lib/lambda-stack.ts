@@ -102,7 +102,8 @@ export class LambdaStack extends cdk.Stack {
     tables.bookings.grantReadData(updateSeat);
     updateSeat.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail'],
-      resources: ['*'],
+      // Scoped to the verified sender email identity — SES SendEmail requires identity ARN, not message ARN
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${senderEmail.valueAsString}`],
     }));
 
     // --- Passenger Details ---
@@ -121,7 +122,8 @@ export class LambdaStack extends cdk.Stack {
     tables.bookings.grantReadData(updatePassenger);
     updatePassenger.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail'],
-      resources: ['*'],
+      // Scoped to the verified sender email identity — SES SendEmail requires identity ARN, not message ARN
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${senderEmail.valueAsString}`],
     }));
 
     // --- Loyalty & Upgrades ---
@@ -133,9 +135,11 @@ export class LambdaStack extends cdk.Stack {
     const getUpgrades = createFn('get-upgrade-options', {
       BOOKINGS_TABLE: tables.bookings.tableName,
       SEATMAP_TABLE: tables.seatMap.tableName,
+      PASSENGERS_TABLE: tables.passengers.tableName,
     });
     tables.bookings.grantReadData(getUpgrades);
     tables.seatMap.grantReadData(getUpgrades);
+    tables.passengers.grantReadData(getUpgrades);
 
     const getPurchases = createFn('get-purchase-history', {
       PURCHASE_HISTORY_TABLE: tables.purchaseHistory.tableName,
@@ -156,7 +160,8 @@ export class LambdaStack extends cdk.Stack {
     tables.customers.grantReadData(updatePrefs);
     updatePrefs.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail'],
-      resources: ['*'],
+      // Scoped to the verified sender email identity — SES SendEmail requires identity ARN, not message ARN
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${senderEmail.valueAsString}`],
     }));
 
     // --- Conversation History (audit) ---
@@ -198,7 +203,8 @@ export class LambdaStack extends cdk.Stack {
     tables.customers.grantReadData(rebookFlight);
     rebookFlight.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ses:SendEmail'],
-      resources: ['*'],
+      // Scoped to the verified sender email identity — SES SendEmail requires identity ARN, not message ARN
+      resources: [`arn:aws:ses:${this.region}:${this.account}:identity/${senderEmail.valueAsString}`],
     }));
 
     // Export all function ARNs

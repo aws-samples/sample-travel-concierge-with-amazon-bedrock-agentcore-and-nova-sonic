@@ -240,6 +240,10 @@ export class InfraStack extends cdk.Stack {
     );
 
     // X-Ray Tracing
+    // Note: X-Ray write operations (PutTraceSegments, PutTelemetryRecords) and
+    // sampling operations (GetSamplingRules, GetSamplingTargets) require Resource: '*'
+    // by AWS API design — they cannot be scoped to specific resource ARNs.
+    // See: https://docs.aws.amazon.com/xray/latest/devguide/security_iam_service-with-iam.html
     this.agentCoreRuntimeRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -249,11 +253,15 @@ export class InfraStack extends cdk.Stack {
           'xray:GetSamplingRules',
           'xray:GetSamplingTargets',
         ],
-        resources: ['*'],
+        resources: ['*'], // Required by X-Ray API — no resource-level scoping supported
       })
     );
 
     // Bedrock Model Invocation - All foundation models (including bidirectional streaming)
+    // Note: foundation-model ARNs use 'arn:aws:bedrock:*::foundation-model/*' (region wildcard)
+    // because Bedrock foundation models are global resources published by AWS — they are not
+    // account-scoped and cannot be referenced with a specific region in the ARN.
+    // See: https://docs.aws.amazon.com/bedrock/latest/userguide/security_iam_service-with-iam.html
     this.agentCoreRuntimeRole.addToPolicy(
       new iam.PolicyStatement({
         sid: 'BedrockModelInvocation',
@@ -264,7 +272,7 @@ export class InfraStack extends cdk.Stack {
           'bedrock:InvokeModelWithBidirectionalStream',
         ],
         resources: [
-          'arn:aws:bedrock:*::foundation-model/*',
+          'arn:aws:bedrock:*::foundation-model/*', // Global foundation models — region wildcard required by ARN format
           `arn:aws:bedrock:${region}:${accountId}:*`,
         ],
       })

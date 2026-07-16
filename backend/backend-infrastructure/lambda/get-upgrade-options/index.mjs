@@ -5,6 +5,7 @@ const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
 const BOOKINGS_TABLE = process.env.BOOKINGS_TABLE;
 const SEATMAP_TABLE = process.env.SEATMAP_TABLE;
+const PASSENGERS_TABLE = process.env.PASSENGERS_TABLE;
 
 const spaceOut = (s) => s.split("").join(" ");
 
@@ -29,16 +30,29 @@ const formatCabin = (cabin) => {
 export const handler = async (event) => {
   try {
     const { bookingId } = event.pathParameters || {};
-    const customerId = event.queryStringParameters?.customerId;
+    // Accept customerId as optional query param for backward compatibility,
+    // but resolve it from the Passengers table if not provided.
+    let customerId = event.queryStringParameters?.customerId;
 
     if (!bookingId) {
       return { statusCode: 400, body: JSON.stringify({ error: 'bookingId is required' }) };
     }
 
-    // Get booking to determine current fare class
-    // We need customerId to construct the PK
+    // Resolve customerId from the Passengers table if not supplied.
+    // Passengers PK = BOOKING#{bookingId} → GSI1PK = CUSTOMER#{customerId}
+    if (!customerId && PASSENGERS_TABLE) {
+      const paxResult = await ddb.send(new QueryCommand({
+        TableName: PASSENGERS_TABLE,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': `BOOKING#${bookingId}` },
+        Limit: 1,
+      }));
+      const gsi1pk = paxResult.Items?.[0]?.GSI1PK;
+      if (gsi1pk) customerId = gsi1pk.replace('CUSTOMER#', '');
+    }
+
     if (!customerId) {
-      return { statusCode: 400, body: JSON.stringify({ error: 'customerId query parameter is required' }) };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Could not resolve customerId for this booking' }) };
     }
 
     const booking = await ddb.send(new GetCommand({
