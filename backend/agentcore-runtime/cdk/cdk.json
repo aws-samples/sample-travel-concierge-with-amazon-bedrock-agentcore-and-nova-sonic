@@ -70,6 +70,7 @@
     "@aws-cdk/aws-neptune:defaultPortFromEngineVersion": true,
     "@aws-cdk/aws-eks:defaultCapacityType": true,
     "@aws-cdk/aws-autoscaling:defaultRollingUpdatePolicy": true,
-    "@aws-cdk/aws-stepfunctions:useCfnOutputs": true
+    "@aws-cdk/aws-stepfunctions:useCfnOutputs": true,
+    "@aws-cdk/core:defaultCrossStackReferences": "strong"
   }
 }
