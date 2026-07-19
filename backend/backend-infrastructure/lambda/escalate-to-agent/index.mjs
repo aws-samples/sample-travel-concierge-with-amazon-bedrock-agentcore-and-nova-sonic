@@ -12,9 +12,6 @@ const spaceOut = (s) => s.split("").join(" ");
  *
  * Records the escalation reason, priority, and conversation context
  * in the conversations table for the human agent to review.
- *
- * In production, this would trigger an Amazon Connect transfer,
- * create a CRM ticket, or page an on-call agent.
  */
 export const handler = async (event) => {
   try {
