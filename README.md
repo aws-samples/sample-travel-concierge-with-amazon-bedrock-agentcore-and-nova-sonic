@@ -51,7 +51,7 @@ The architecture implements a four-section decoupled pattern:
 6. **AWS Lambda** functions query **Amazon DynamoDB** tables for bookings, passengers, seat maps, loyalty status, and flight information. Email notifications are sent via **Amazon SES**.
 7. **Amazon Nova 2 Sonic** generates a contextual voice response and streams it back to you over the WebSocket connection via **Amazon Bedrock AgentCore Runtime**.
 8. When you request a live agent, **AWS Lambda** logs the escalation in **Amazon DynamoDB** and returns a reference number. **AWS Amplify** triggers the call from your device to connect you directly to the live agent.
-9. For policy questions, **AWS Lambda** queries the **Amazon Bedrock Knowledge Base**. **Amazon Nova Lite** generates a natural language answer from retrieved airline policy documents.
+9. For policy questions, **AWS Lambda** invokes the **Amazon Bedrock Knowledge Base** (Managed KB) which retrieves relevant airline policy excerpts from uploaded PDF documents and returns a grounded natural language answer.
 10. **AWS CDK** deploys the solution with a single script, uploading application code to **Amazon S3** and triggering **AWS CodeBuild** to build container images stored in **Amazon ECR** for the AgentCore runtime.
 11. **Amazon CloudWatch** provides centralized monitoring, logging, and alerting across all services. All data at rest is encrypted using **AWS KMS**.
 
@@ -109,7 +109,7 @@ Install the following tools before deployment:
 - IAM permissions to deploy CDK stacks and CloudFormation templates, create and manage Bedrock AgentCore Runtimes and Gateways, configure Cognito User Pools and Identity Pools, create Lambda functions and API Gateway endpoints, and set up DynamoDB tables and Bedrock Knowledge Base resources.
 - Amazon Bedrock model access for **Amazon Nova 2 Sonic**. Request access through the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/) if not already enabled.
 - Amazon Bedrock model access for **Amazon Titan Embed Text v2** (required for the Knowledge Base embedding model).
-- Access to the following services: Amazon Bedrock AgentCore Runtime, Amazon Bedrock (Nova 2 Sonic, Nova Lite, Titan Embed), Amazon Bedrock Knowledge Base, AWS Lambda, Amazon DynamoDB, Amazon Cognito, AWS Amplify, Amazon API Gateway, Amazon ECR, Amazon S3, AWS CodeBuild, Amazon SES, and Amazon CloudWatch.
+- Access to the following services: Amazon Bedrock AgentCore Runtime, Amazon Bedrock (Nova 2 Sonic, Titan Embed), Amazon Bedrock Knowledge Base, AWS Lambda, Amazon DynamoDB, Amazon Cognito, AWS Amplify, Amazon API Gateway, Amazon ECR, Amazon S3, AWS CodeBuild, Amazon SES, and Amazon CloudWatch.
 
 ### AWS CDK bootstrap
 
