@@ -43,17 +43,18 @@ The architecture implements a four-section decoupled pattern:
 
 ### User request flow
 
-1. You access the web application hosted on **AWS Amplify** from a browser or mobile device. You authenticate with **Amazon Cognito** using username and password to receive JWT tokens and temporary AWS credentials.
-2. The frontend opens a SigV4-signed WebSocket connection to **Amazon Bedrock AgentCore**, an enterprise-grade service for deploying and operating AI agents at scale, to begin the voice concierge session.
-3. The runtime validates the token via **Amazon Cognito** and initializes **Amazon Nova 2 Sonic** through **Amazon Bedrock**, a fully managed service with built-in security, privacy, and responsible AI.
-4. You speak your request. The agent processes voice through **Amazon Nova 2 Sonic** and invokes tool functions via **AWS Lambda** to retrieve flight data, manage bookings, and update passenger preferences.
-5. **Amazon Bedrock AgentCore Gateway** forwards requests as REST API calls to **Amazon API Gateway**, which routes them to **AWS Lambda** functions.
-6. **AWS Lambda** functions query **Amazon DynamoDB** tables for bookings, passengers, seat maps, loyalty status, and flight information. Email notifications are sent via **Amazon SES**.
-7. **Amazon Nova 2 Sonic** generates a contextual voice response and streams it back to you over the WebSocket connection via **Amazon Bedrock AgentCore Runtime**.
-8. When you request a live agent, **AWS Lambda** logs the escalation in **Amazon DynamoDB** and returns a reference number. **AWS Amplify** triggers the call from your device to connect you directly to the live agent.
+1. The user opens the web application in a browser or a mobile device hosted on **AWS Amplify**. 
+2. The user enters their credentials on the login page. **Amazon Cognito** authenticates the request and returns JWT tokens and temporary AWS credentials.
+3. The frontend opens a SigV4-signed WebSocket connection to **Amazon Bedrock AgentCore** to begin the voice concierge session.  
+4. The runtime validates the token via **Amazon Cognito** and initializes **Amazon Nova 2 Sonic** through **Amazon Bedrock**.
+5. You speak your request. **Amazon Nova 2 Sonic** processes the audio and triggers tool calls. The agent handles the tool integration by invoking the AgentCore Gateway using MCP to retrieve flight data, manage bookings, and update passenger preferences. 
+6. **Amazon Bedrock AgentCore Gateway** forwards requests as REST API calls to **Amazon API Gateway**, which routes them to **AWS Lambda** functions.
+7. **AWS Lambda** functions query **Amazon DynamoDB** tables for bookings, passengers, seat maps, loyalty status, and flight information. Email notifications are sent via **Amazon SES**.
+8. **Amazon Nova 2 Sonic** generates a contextual voice response and streams it back to you over the WebSocket connection via **Amazon Bedrock AgentCore Runtime**.
 9. For policy questions, **AWS Lambda** invokes the **Amazon Bedrock Knowledge Base** (Managed KB) which retrieves relevant airline policy excerpts from uploaded PDF documents and returns a grounded natural language answer.
-10. **AWS CDK** deploys the solution with a single script, uploading application code to **Amazon S3** and triggering **AWS CodeBuild** to build container images stored in **Amazon ECR** for the AgentCore runtime.
-11. **Amazon CloudWatch** provides centralized monitoring, logging, and alerting across all services. All data at rest is encrypted using **AWS KMS**.
+10. When you request a live agent, **AWS Lambda** logs the escalation in **Amazon DynamoDB** and returns a reference number. **AWS Amplify** then triggers the call from your device to connect you to the live agent. 
+11. **AWS CDK** deploys the solution with a single script, uploading application code to **Amazon S3** and triggering **AWS CodeBuild** to build container images stored in **Amazon ECR** for the AgentCore runtime.
+12. **Amazon CloudWatch** provides centralized monitoring, logging, and alerting across all services. All data at rest is encrypted using **AWS KMS**.
 
 ### Cost
 
