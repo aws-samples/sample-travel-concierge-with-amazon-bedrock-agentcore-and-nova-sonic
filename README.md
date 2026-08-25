@@ -493,6 +493,6 @@ For any feedback, questions, or suggestions, use the [Issues tab](https://github
 ## Authors
 
 - Ravi Kumar, Senior TAM
-- Ankush Goyal, Senior TAM
 - Salman Ahmed, Senior TAM
 - Sergio Barraza, Senior TAM
+- Ankush Goyal, Senior TAM
