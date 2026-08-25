@@ -488,7 +488,7 @@ For any feedback, questions, or suggestions, use the [Issues tab](https://github
 
 ## Revisions
 
-- **v1.0.0** — Initial release with AgentCore Runtime, Amazon Nova 2 Sonic, Bedrock Knowledge Base, and MCP integration.
+- **v1.0.0** — Initial release with AgentCore Runtime, Amazon Nova 2 Sonic, Amazon Bedrock Managed Knowledge Base, and MCP integration.
 
 ## Authors
 
