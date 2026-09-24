@@ -1,4 +1,4 @@
-# Guidance for Travel Concierge using Amazon Bedrock AgentCore and Nova Sonic 2
+# Guidance for Travel Concierge using Amazon Bedrock AgentCore and Nova Sonic
 
 ## Table of Contents
 
@@ -27,17 +27,17 @@
 
 This Guidance demonstrates how to build an AI-powered voice travel concierge for airlines that enables customers to manage their flights, seats, meals, and travel preferences through natural voice conversation. Customers speak their requests and the system handles the rest — no screens, no typing, no tapping. The Guidance addresses the growing demand for personalized, hands-free travel assistance by combining real-time speech-to-speech AI with a decoupled, scalable backend architecture.
 
-The Guidance uses **Amazon Bedrock AgentCore** for agent hosting with microVM session isolation, **Amazon Nova 2 Sonic** for bidirectional speech-to-speech processing, the **Strands Agents** framework for conversational agent logic, **Amazon Bedrock Knowledge Base** backed by **Amazon S3 Vectors** for airline policy queries, and **Model Context Protocol (MCP)** for standardized tool interactions between the agent and backend services. All infrastructure is deployed using **AWS Cloud Development Kit (AWS CDK)**.
+The Guidance uses **Amazon Bedrock AgentCore** for agent hosting with microVM session isolation, **Amazon Nova 2.5 Sonic** for bidirectional speech-to-speech processing, the **Strands Agents** framework for conversational agent logic, **Amazon Bedrock Knowledge Base** backed by **Amazon S3 Vectors** for airline policy queries, and **Model Context Protocol (MCP)** for standardized tool interactions between the agent and backend services. All infrastructure is deployed using **AWS Cloud Development Kit (AWS CDK)**.
 
 The architecture implements a four-section decoupled pattern:
 
-![Architecture Diagram](./assets/travel-concierge-architecture.png)
+<img width="2898" height="1714" alt="figure-1-travel-concierge-architecture" src="https://github.com/user-attachments/assets/0b20e79e-c0d0-4189-a679-1849f4130622" />
 
 **Section A — Backend Infrastructure.** Five CDK stacks deploy the airline backend: **Amazon DynamoDB** tables for customer profiles, bookings, passengers, seat maps, purchase history, preferences, conversations, and flight status; **Amazon Bedrock Knowledge Base** backed by **Amazon S3 Vectors** for airline policy documents; **AWS Lambda** functions for business logic; **Amazon API Gateway** REST endpoints with **AWS Identity and Access Management (IAM)** authorization; and **Amazon Cognito** for user authentication with User Pool, Identity Pool, and an initial test user.
 
 **Section B — AgentCore Gateway.** A CDK stack creates the **Amazon Bedrock AgentCore Gateway** with MCP protocol, exposing all backend API endpoints as discoverable MCP tools that the agent can invoke by name.
 
-**Section C — AgentCore Runtime.** Two CDK stacks provision **Amazon Elastic Container Registry (Amazon ECR)** for container storage, **Amazon Simple Storage Service (Amazon S3)** for source uploads, **AWS CodeBuild** for ARM64 Docker builds, and the **Amazon Bedrock AgentCore Runtime** with WebSocket protocol. The agent uses the Strands Agents framework with Amazon Nova 2 Sonic for bidirectional voice streaming.
+**Section C — AgentCore Runtime.** Two CDK stacks provision **Amazon Elastic Container Registry (Amazon ECR)** for container storage, **Amazon Simple Storage Service (Amazon S3)** for source uploads, **AWS CodeBuild** for ARM64 Docker builds, and the **Amazon Bedrock AgentCore Runtime** with WebSocket protocol. The agent uses the Strands Agents framework with Amazon Nova 2.5 Sonic for bidirectional voice streaming.
 
 **Section D — Frontend.** A CDK stack creates an **AWS Amplify** application for hosting the React frontend. After the stack deploys, the frontend code is built and pushed to Amplify.
 
@@ -46,11 +46,11 @@ The architecture implements a four-section decoupled pattern:
 1. The user opens the web application in a browser or a mobile device hosted on **AWS Amplify**. 
 2. The user enters their credentials on the login page. **Amazon Cognito** authenticates the request and returns JWT tokens and temporary AWS credentials.
 3. The frontend opens a SigV4-signed WebSocket connection to **Amazon Bedrock AgentCore** to begin the voice concierge session.  
-4. The runtime validates the token via **Amazon Cognito** and initializes **Amazon Nova 2 Sonic** through **Amazon Bedrock**.
-5. You speak your request. **Amazon Nova 2 Sonic** processes the audio and triggers tool calls. The agent handles the tool integration by invoking the AgentCore Gateway using MCP to retrieve flight data, manage bookings, and update passenger preferences. 
+4. The runtime validates the token via **Amazon Cognito** and initializes **Amazon Nova 2.5 Sonic** through **Amazon Bedrock**.
+5. You speak your request. **Amazon Nova 2.5 Sonic** processes the audio and triggers tool calls. The agent handles the tool integration by invoking the AgentCore Gateway using MCP to retrieve flight data, manage bookings, and update passenger preferences. 
 6. **Amazon Bedrock AgentCore Gateway** forwards requests as REST API calls to **Amazon API Gateway**, which routes them to **AWS Lambda** functions.
 7. **AWS Lambda** functions query **Amazon DynamoDB** tables for bookings, passengers, seat maps, loyalty status, and flight information. Email notifications are sent via **Amazon SES**.
-8. **Amazon Nova 2 Sonic** generates a contextual voice response and streams it back to you over the WebSocket connection via **Amazon Bedrock AgentCore Runtime**.
+8. **Amazon Nova 2.5 Sonic** generates a contextual voice response and streams it back to you over the WebSocket connection via **Amazon Bedrock AgentCore Runtime**.
 9. For policy questions, **AWS Lambda** invokes the **Amazon Bedrock Knowledge Base** (Managed KB) which retrieves relevant airline policy excerpts from uploaded PDF documents and returns a grounded natural language answer.
 10. When you request a live agent, **AWS Lambda** logs the escalation in **Amazon DynamoDB** and returns a reference number. **AWS Amplify** then triggers the call from your device to connect you to the live agent. 
 11. **AWS CDK** deploys the solution with a single script, uploading application code to **Amazon S3** and triggering **AWS CodeBuild** to build container images stored in **Amazon ECR** for the AgentCore runtime.
@@ -68,7 +68,7 @@ The following table provides a sample cost breakdown for deploying this Guidance
 
 | AWS service | Dimensions | Cost [USD] |
 | ----------- | ---------- | ---------- |
-| [Amazon Bedrock (Nova 2 Sonic)](https://aws.amazon.com/nova/pricing/) | ~680 input + ~5,083 output speech tokens/session, ~7,438 input + ~1,260 output text tokens/session | $68.96 |
+| [Amazon Bedrock (Nova 2.5 Sonic)](https://aws.amazon.com/nova/pricing/) | ~680 input + ~5,083 output speech tokens/session, ~7,438 input + ~1,260 output text tokens/session | $68.96 |
 | [Amazon Bedrock AgentCore Runtime](https://aws.amazon.com/bedrock/agentcore/pricing/) | 3,000 sessions, ~5 min each, ~30% active CPU, 1 vCPU, 512 MB memory | $7.88 |
 | [Amazon Bedrock AgentCore Gateway](https://aws.amazon.com/bedrock/agentcore/pricing/) | 3,000 search calls + 60,000 tool invocations, 17 tools indexed | $0.35 |
 | [Amazon Bedrock Knowledge Base](https://aws.amazon.com/bedrock/pricing/) | S3 Vectors storage, ~3,000 queries/month | $5.00 |
@@ -82,7 +82,7 @@ The following table provides a sample cost breakdown for deploying this Guidance
 | | **Estimated Total** | **~$94.25** |
 
 **Notes:**
-- Nova 2 Sonic output speech tokens are the dominant cost driver (~73% of total).
+- Nova 2.5 Sonic output speech tokens are the dominant cost driver (~73% of total).
 - Token counts are based on observed metrics from real travel concierge conversations with tool calls.
 - AgentCore Runtime uses consumption-based pricing — you pay only for active CPU and memory, not I/O wait time.
 - Costs scale linearly with usage. For 10,000 sessions per month, the estimated cost is approximately $314.
@@ -108,9 +108,9 @@ Install the following tools before deployment:
 ### AWS account requirements
 
 - IAM permissions to deploy CDK stacks and CloudFormation templates, create and manage Bedrock AgentCore Runtimes and Gateways, configure Cognito User Pools and Identity Pools, create Lambda functions and API Gateway endpoints, and set up DynamoDB tables and Bedrock Knowledge Base resources.
-- Amazon Bedrock model access for **Amazon Nova 2 Sonic**. Request access through the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/) if not already enabled.
+- Amazon Bedrock model access for **Amazon Nova 2.5 Sonic**. Request access through the [Amazon Bedrock console](https://console.aws.amazon.com/bedrock/) if not already enabled.
 - Amazon Bedrock model access for **Amazon Titan Embed Text v2** (required for the Knowledge Base embedding model).
-- Access to the following services: Amazon Bedrock AgentCore Runtime, Amazon Bedrock (Nova 2 Sonic, Titan Embed), Amazon Bedrock Knowledge Base, AWS Lambda, Amazon DynamoDB, Amazon Cognito, AWS Amplify, Amazon API Gateway, Amazon ECR, Amazon S3, AWS CodeBuild, Amazon SES, and Amazon CloudWatch.
+- Access to the following services: Amazon Bedrock AgentCore Runtime, Amazon Bedrock (Nova 2.5 Sonic, Titan Embed), Amazon Bedrock Knowledge Base, AWS Lambda, Amazon DynamoDB, Amazon Cognito, AWS Amplify, Amazon API Gateway, Amazon ECR, Amazon S3, AWS CodeBuild, Amazon SES, and Amazon CloudWatch.
 
 ### AWS CDK bootstrap
 
@@ -124,7 +124,7 @@ Replace `<ACCOUNT_ID>` with your AWS account ID and `<REGION>` with your target 
 
 ### Supported Regions
 
-This Guidance requires Amazon Bedrock model access for Amazon Nova 2 Sonic. Deploy in a Region where Nova 2 Sonic is available. Check the [Amazon Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current Region availability.
+This Guidance requires Amazon Bedrock model access for Amazon Nova 2.5 Sonic. Deploy in a Region where Nova 2.5 Sonic is available. Check the [Amazon Bedrock pricing page](https://aws.amazon.com/bedrock/pricing/) for current Region availability.
 
 ## Automated Deployment
 
@@ -164,7 +164,7 @@ chmod +x deploy-all.sh
 - Bootstraps CDK if not already done.
 - Deploys backend infrastructure (DynamoDB, Lambda, API Gateway, Cognito, Knowledge Base).
 - Deploys AgentCore Gateway (MCP server exposing backend APIs as tools).
-- Deploys AgentCore Runtime (agent with Nova 2 Sonic, built via CodeBuild — allow 10–15 minutes).
+- Deploys AgentCore Runtime (agent with Nova 2.5 Sonic, built via CodeBuild — allow 10–15 minutes).
 - Seeds synthetic data and deploys the frontend (unless skipped).
 - Validates all CloudFormation stacks and displays deployment outputs.
 
@@ -387,7 +387,7 @@ Consider the following enhancements after deploying this Guidance:
 - **Add your own policy documents.** Place PDF or text files in `backend/policy-documents/flight/` and redeploy `TH-KnowledgeBaseStack` to update the Knowledge Base with your airline's policies.
 - **Customize the agent persona.** Edit the system prompt in `backend/agentcore-runtime/agent/travel_agent.py` to match your airline's brand voice and service offerings.
 - **Add new API tools.** Add Lambda functions and API Gateway endpoints in `backend/backend-infrastructure/lib/`, then redeploy the Gateway stack to expose them as MCP tools automatically.
-- **Multi-language support.** Amazon Nova 2 Sonic supports multiple languages. The agent already switches languages when the customer speaks in a different language; extend the system prompt for additional language-specific behavior.
+- **Multi-language support.** Amazon Nova 2.5 Sonic supports multiple languages. The agent already switches languages when the customer speaks in a different language; extend the system prompt for additional language-specific behavior.
 - **Payment integration.** Add payment processing for ancillary purchases (seat upgrades, extra baggage) using the existing customer profile and booking tables.
 - **CI/CD pipeline.** Set up AWS CodePipeline for automated testing and deployment of agent and infrastructure changes.
 - **Monitoring and alerting.** Configure Amazon CloudWatch dashboards and alarms for latency, error rates, and cost tracking.
@@ -471,7 +471,7 @@ aws sesv2 delete-email-identity --email-identity your-email@example.com
 
 ### Additional considerations
 
-- **Bedrock pricing.** Amazon Nova 2 Sonic charges per token (input and output). Output speech tokens are the dominant cost driver. Monitor usage with Amazon CloudWatch and AWS Cost Explorer.
+- **Bedrock pricing.** Amazon Nova 2.5 Sonic charges per token (input and output). Output speech tokens are the dominant cost driver. Monitor usage with Amazon CloudWatch and AWS Cost Explorer.
 - **Data retention.** Configure DynamoDB TTL for automatic data cleanup on the Conversations table (TTL is set by default).
 - **Compliance.** Ensure voice data handling complies with local regulations (GDPR, CCPA, and others) before deploying to production.
 - **Accessibility.** Test the frontend with screen readers and keyboard navigation for accessibility compliance.
@@ -481,14 +481,14 @@ aws sesv2 delete-email-identity --email-identity your-email@example.com
 ### Limitations
 
 - **Voice quality.** Requires a stable internet connection for real-time bidirectional streaming.
-- **Language support.** The sample agent is configured for English. Amazon Nova 2 Sonic supports additional languages that can be enabled by modifying the system prompt.
+- **Language support.** The sample agent is configured for English. Amazon Nova 2.5 Sonic supports additional languages that can be enabled by modifying the system prompt.
 - **Single airline.** The sample data and agent are configured for a single airline. Multi-airline support requires extending the data model and agent logic.
 
 For any feedback, questions, or suggestions, use the [Issues tab](https://github.com/aws-samples/sample-travel-concierge-with-amazon-bedrock-agentcore-and-nova-sonic/issues) in the repository.
 
 ## Revisions
 
-- **v1.0.0** — Initial release with AgentCore Runtime, Amazon Nova 2 Sonic, Amazon Bedrock Managed Knowledge Base, and MCP integration.
+- **v1.0.0** — Initial release with AgentCore Runtime, Amazon Nova 2.5 Sonic, Amazon Bedrock Managed Knowledge Base, and MCP integration.
 
 ## Authors
 
