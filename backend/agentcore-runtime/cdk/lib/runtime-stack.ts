@@ -210,7 +210,7 @@ export class RuntimeStack extends cdk.Stack {
     // Create the AgentCore Runtime with HTTP protocol and Cognito authentication
     const agentRuntime = new bedrockagentcore.CfnRuntime(this, 'AgentRuntime', {
       agentRuntimeName: 'th_travel_concierge_runtime',
-      description: 'Travel concierge agent with Nova Sonic v2 and WebSocket protocol',
+      description: 'Travel concierge agent with Nova Sonic 2.5 (early access) and WebSocket protocol',
       roleArn: props.agentCoreRuntimeRole.roleArn,
 
       // Container configuration

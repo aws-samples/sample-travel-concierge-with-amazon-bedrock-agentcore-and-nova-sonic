@@ -137,9 +137,6 @@ print_section "Idempotent Deployment - Mode: $MODE"
 # Backend Infrastructure
 ################################################################################
 
-# Refresh credentials before Backend Infrastructure (first major CDK step)
-ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
-
 print_section "Backend Infrastructure"
 
 BACKEND_DEPLOYED=$(is_deployed "backend-infrastructure")
@@ -315,9 +312,6 @@ fi
 # AgentCore Gateway (CDK)
 ################################################################################
 
-# Refresh credentials before Gateway (backend may have taken 15+ min)
-ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
-
 print_section "AgentCore Gateway (CDK)"
 
 GATEWAY_DEPLOYED=$(is_deployed "agentcore-gateway")
@@ -427,9 +421,6 @@ fi
 # AgentCore Runtime
 ################################################################################
 
-# Refresh credentials before Runtime (CodeBuild takes 10-15 min, token must be fresh)
-ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
-
 print_section "AgentCore Runtime"
 
 RUNTIME_DEPLOYED=$(is_deployed "agentcore-runtime")
@@ -494,8 +485,6 @@ SHOULD_DEPLOY_SYNTHETIC=false
 if [ "$WITH_SYNTHETIC_DATA" = true ]; then
   SHOULD_DEPLOY_SYNTHETIC=true
 elif [ "$SKIP_SYNTHETIC_DATA" = false ]; then
-  # Refresh credentials before synthetic data seeding
-  ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
   # Ask user interactively
   print_section "Synthetic Data (Optional)"
   echo ""
@@ -565,8 +554,6 @@ if [ "$WITH_FRONTEND" = true ]; then
 elif [ "$SKIP_FRONTEND" = false ]; then
   # Check if frontend directory exists
   if [ -d "frontend" ]; then
-    # Refresh credentials before frontend deploy
-    ada credentials update --account=872515292169 --provider=isengard --role=Admin --once 2>/dev/null || true
     print_section "Frontend (Optional)"
     echo ""
     print_info "Would you like to deploy the frontend application?"

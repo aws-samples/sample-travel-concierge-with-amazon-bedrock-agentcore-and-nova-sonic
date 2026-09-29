@@ -32,6 +32,11 @@ export class WebSocketClient {
   // Processed tool IDs — prevents duplicate callbacks when both typed + Shape B arrive
   private processedToolIds = new Set<string>();
 
+  // Assistant text already delivered for the current turn — prevents bidi_text_output
+  // from re-delivering a duplicate of what bidi_transcript_stream already streamed
+  // (most visible when the user stays silent after the response finishes).
+  private assistantTextBuffer = '';
+
   // Callbacks
   private onTranscriptionCb?: (text: string, role: 'user' | 'assistant') => void;
   private onResponseCb?: (text: string) => void;
@@ -85,6 +90,7 @@ export class WebSocketClient {
     this.isSessionTimeout = false;
     this.pendingTools.clear();
     this.processedToolIds.clear();
+    this.assistantTextBuffer = '';
     this.ws?.close(1000, 'Client disconnect');
     this.ws = null;
   }
@@ -175,9 +181,13 @@ export class WebSocketClient {
         const role = data.role as string;
         const text = (data.transcript || data.text) as string;
         if (role === 'user') {
+          // New turn starting — clear last turn's assistant text so the next
+          // response's dedup check isn't comparing against stale content.
+          this.assistantTextBuffer = '';
           this.onTranscriptionCb?.(text, 'user');
         } else if (!data.is_final) {
           // Skip is_final:true — it's a duplicate of the streaming transcript
+          this.assistantTextBuffer += text;
           this.onResponseCb?.(text);
         }
         break;
@@ -189,11 +199,22 @@ export class WebSocketClient {
         }
         break;
 
-      case 'bidi_text_output':
-        this.onResponseCb?.(data.text as string);
+      case 'bidi_text_output': {
+        // Sometimes re-delivers the fully-formed response as a standalone event
+        // after it has already been streamed via bidi_transcript_stream deltas
+        // (notably when the user stays silent after the turn ends). Skip it if
+        // it's a duplicate of what's already been streamed for this turn.
+        const text = data.text as string;
+        if (text && this.assistantTextBuffer.includes(text)) {
+          break;
+        }
+        this.assistantTextBuffer += text;
+        this.onResponseCb?.(text);
         break;
+      }
 
       case 'bidi_interruption':
+        this.assistantTextBuffer = '';
         this.onInterruptionCb?.();
         this.onTurnCompleteCb?.();
         break;

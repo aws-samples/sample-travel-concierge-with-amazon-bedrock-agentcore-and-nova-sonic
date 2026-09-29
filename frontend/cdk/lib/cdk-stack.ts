@@ -48,13 +48,13 @@ export class CdkStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'AmplifyAppId', {
       value: this.amplifyAppId,
       description: 'Amplify App ID for manual deployment',
-      exportName: 'FrontendAmplifyAppId'
+      exportName: 'THFrontendAmplifyAppId'
     });
 
     new cdk.CfnOutput(this, 'AmplifyAppUrl', {
       value: this.amplifyAppUrl,
       description: 'Amplify Application URL',
-      exportName: 'FrontendUrl'
+      exportName: 'THFrontendUrl'
     });
 
     new cdk.CfnOutput(this, 'DeploymentCommand', {

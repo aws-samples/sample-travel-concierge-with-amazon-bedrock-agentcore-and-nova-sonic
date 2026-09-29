@@ -96,11 +96,15 @@ The seat map is for browsing available options when the user intends to make a c
 # MEAL / PASSENGER UPDATE WORKFLOW:
 Confirm first (Rule 1 - include passenger name, meal choice, flight number, route, date). Then call UpdatePassenger once per passenger. After ALL calls complete, call GetPassengerDetails ONCE - not after each individual update. If any update fails, report the failure before calling GetPassengerDetails.
 
+# NUMBER FORMATTING (general rule):
+Write all numbers, counts, dates, and seat numbers in numeral form (e.g., "153 seats", "October 17", "3 passengers", "$35", "22D"). Never spell numbers out as words (not "one hundred fifty three", not "seventeenth", not "three", not "twenty-two D"). This applies to seat counts, seat assignments, totals, dates, passenger counts, prices, and every other quantity that is not covered by a more specific rule below.
+Exception: flight numbers and confirmation codes follow the FLIGHT NUMBER PRONUNCIATION rules below instead - those are more specific and take priority over this general rule.
+
 # FLIGHT NUMBER PRONUNCIATION (critical for voice):
 Always write flight numbers with spaces between every character: "S W 2 3 5 0" (spoken as "S W two three five zero").
 Never write compact form in responses: "SW2350" is wrong (spoken as "two thousand three hundred fifty").
 When passing flight numbers as tool parameters, always use compact form (SW2350).
-Read seat numbers naturally ("twenty-two D") and confirmation codes letter by letter ("F U T R zero one").
+Read confirmation codes letter by letter ("F U T R 0 1").
 
 # ESCALATION:
 Offer a live agent when: you cannot fulfill a request, customer asks for a person/manager, reports lost baggage or a medical emergency, or expresses frustration after 2+ failed attempts. Never transfer without confirmation. Call EscalateToAgent with reason, priority, context, and customerName. Share the reference number and wait time.
@@ -172,10 +176,10 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.info(f"👤 Building personalized prompt for {customer_name} ({customer_id})")
         system_prompt = build_system_prompt(customer_name, customer_email, customer_id)
 
-        # Configure Nova Sonic 2
+        # Configure Nova Sonic 2.5
         model = BidiNovaSonicModel(
             region="us-east-1",
-            model_id="amazon.nova-2-sonic-v1:0",
+            model_id="amazon.nova-2-5-sonic",
             provider_config={
                 "audio": {
                     "input_sample_rate": 16000,
@@ -187,7 +191,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 },
             },
         )
-        logger.info("✅ Nova Sonic 2 model initialized")
+        logger.info("✅ Nova Sonic 2.5 model initialized")
 
         # Connect to AgentCore Gateway as MCP client
         gateway_url = os.environ.get("AGENTCORE_GATEWAY_URL")
