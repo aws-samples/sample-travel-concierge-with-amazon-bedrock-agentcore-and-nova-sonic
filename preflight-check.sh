@@ -179,12 +179,12 @@ fi
 
 # Check Bedrock model access (only if AWS CLI and creds exist)
 if [ "$AWS_CLI_MISSING" = false ] && [ "$AWS_CREDS_MISSING" = false ]; then
-  print_check "Bedrock Nova Sonic v2 access"
+  print_check "Bedrock Nova Sonic 2.5 access"
   REGION=$(aws configure get region 2>/dev/null || echo "us-east-1")
-  if aws bedrock list-foundation-models --region "$REGION" --query "modelSummaries[?contains(modelId, 'nova-sonic')].modelId" --output text 2>/dev/null | grep -q "nova-sonic"; then
-    print_pass "Bedrock Nova Sonic v2 access granted"
+  if aws bedrock list-foundation-models --region "$REGION" --query "modelSummaries[?contains(modelId, 'nova-2-5-sonic')].modelId" --output text 2>/dev/null | grep -q "nova-2-5-sonic"; then
+    print_pass "Bedrock Nova Sonic 2.5 access granted"
   else
-    print_fail "Bedrock Nova Sonic v2 access not granted" "Request access in Bedrock console"
+    print_fail "Bedrock Nova Sonic 2.5 access not granted" "Request access in Bedrock console"
   fi
 fi
 
