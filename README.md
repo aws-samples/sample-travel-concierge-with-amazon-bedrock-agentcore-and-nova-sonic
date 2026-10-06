@@ -360,10 +360,10 @@ Agent: [Calling tools: GetSeatMap, UpdateSeat]
 
 User: What is the baggage policy?
 
-Agent: [Calling tool: QueryPolicy]
+Agent: [Querying the Knowledge Base]
 
-       Your first checked bag is included with your fare class.
-       Additional checked bags are $35 each. Carry-on bags are always free.
+       On Economy fares, your first checked bag is $35 and the second is $45.
+       Carry-on is free: one personal item and one carry-on bag.
 
 User: I want to speak to a live agent.
 
@@ -468,6 +468,7 @@ aws sesv2 delete-email-identity --email-identity your-email@example.com
 - **Token expiration.** Amazon Cognito tokens expire after 1 hour. Re-authenticate if the session becomes unresponsive.
 - **Cold starts.** The first AWS Lambda invocation may take 2–3 seconds. Subsequent calls are faster.
 - **Knowledge Base ingestion.** After deploying the Knowledge Base stack, allow 2–3 minutes for the initial document ingestion job to complete before querying policy documents.
+- **Citations for uncovered topics.** Citations show the closest matching policy document (relevance score of 60% or higher), even when no policy covers the question. For example, a visa question can show the Pet Travel Policy citation because that document mentions international travel documents, while the agent correctly answers that it doesn't have visa details. To answer such topics, add a policy document that covers them to `backend/policy-documents/flight/`.
 
 ### Additional considerations
 

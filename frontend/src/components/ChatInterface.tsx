@@ -250,7 +250,22 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
           if (!existing || c.score > existing.score) seen.set(c.docName, c);
         }
         // Only show citations with score >= 60% to filter out low-relevance matches
-        pendingCitationsRef.current = Array.from(seen.values()).filter(c => c.score >= 60).slice(0, 3);
+        const citations = Array.from(seen.values()).filter(c => c.score >= 60).slice(0, 3);
+        if (citations.length > 0) {
+          setMessages(prev => {
+            const last = prev[prev.length - 1];
+            // The agent may start speaking before the KB result arrives (async tool
+            // calling). If this turn's answer bubble is already open, attach now.
+            if (last && last.role === 'assistant' && !last.isComplete && last.content !== '— interrupted —') {
+              const updated = [...prev];
+              updated[updated.length - 1] = { ...last, citations };
+              return updated;
+            }
+            // Otherwise attach to the next new assistant bubble.
+            pendingCitationsRef.current = citations;
+            return prev;
+          });
+        }
       }
       return;
     }
@@ -321,7 +336,7 @@ export function ChatInterface({ settings, credentials, accessToken, onSignOut }:
         }
       }
       // Attach any pending KB citations to a new assistant bubble
-      const citations = role === 'assistant' && pendingCitationsRef.current.length > 0
+      const citations = role === 'assistant' && content !== '— interrupted —' && pendingCitationsRef.current.length > 0
         ? pendingCitationsRef.current.splice(0)
         : undefined;
       return [...prev, { role, content, timestamp: new Date(), isAudio, isComplete, citations }];

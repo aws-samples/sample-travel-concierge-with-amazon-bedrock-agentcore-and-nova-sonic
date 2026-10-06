@@ -479,7 +479,7 @@ function parseOpenApiSchema(schema) {
     },
     'GET /passengers/{bookingId}': {
       name: 'GetPassengerDetails',
-      description: 'Get all passenger details for a booking — including seat assignments, meal preferences, baggage, and assistance info. Use this whenever the customer asks about seats or meals. Does NOT include baggage fees, fare rules, or policy details — use QueryPolicy for those. Do NOT use GetUpcomingItinerary for seats or meals.',
+      description: "Get passenger details for a booking: each passenger's current seat assignment, meal preference, booked extra bags, and special assistance. Use this for what THESE passengers currently have (their seats, their meals, their booked bags). Does NOT contain airline rules: baggage allowance, size, weight or fees, available meal options, fare rules, or any other policy. For those, query the policy knowledge base (th-policy-kb___Retrieve). Do NOT use GetUpcomingItinerary for seats or meals.",
     },
     'GET /loyalty/{customerId}': {
       name: 'GetLoyaltyStatus',
